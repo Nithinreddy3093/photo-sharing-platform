@@ -2,6 +2,9 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
 import { UserRole, UserProfile } from '../src/types/index.ts';
+import { getFirebaseAdminApp } from './firebaseAdmin.ts';
+import { getAuth } from 'firebase-admin/auth';
+import { db } from './db.ts';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'photo-platform-jwt-secret-internship-2026';
 const PIN_SALT_ROUNDS = 10;
@@ -75,33 +78,95 @@ export function generateGalleryAccessToken(galleryId: string, slug: string): str
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '2h' }); // 2 hours temporary access
 }
 
-// Express Middleware: Authenticate User
-export function authenticateUser(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+// Express Middleware: Authenticate User (Supports both Custom Staff JWT and Firebase ID Tokens)
+export async function authenticateUser(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Authentication required. Missing or invalid Bearer token.' });
   }
 
   const token = authHeader.split(' ')[1];
+
+  // 1. First attempt: Verify as custom staff JWT (fast, stateless, offline & test compatible)
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as TokenPayload;
-    req.user = decoded;
-    next();
+    if (decoded && decoded.userId) {
+      req.user = decoded;
+      return next();
+    }
   } catch {
-    return res.status(401).json({ error: 'Session expired or token invalid. Please log in again.' });
+    // Token is not a custom staff JWT, proceed to check if it's a Firebase ID token
   }
+
+  // 2. Second attempt: Verify as Firebase ID token via Firebase Admin SDK
+  try {
+    const adminApp = getFirebaseAdminApp();
+    if (adminApp) {
+      const adminAuth = getAuth(adminApp);
+      const decodedFirebase = await adminAuth.verifyIdToken(token);
+      if (decodedFirebase && decodedFirebase.uid) {
+        let profile = await db.findProfileByAuthId(decodedFirebase.uid);
+        if (!profile && decodedFirebase.email) {
+          profile = await db.findProfileByEmail(decodedFirebase.email);
+        }
+
+        if (profile) {
+          req.user = {
+            userId: profile.id,
+            authUserId: profile.auth_user_id,
+            email: profile.email,
+            name: profile.name,
+            role: (decodedFirebase.role as UserRole) || profile.role,
+          };
+          return next();
+        }
+      }
+    }
+  } catch {
+    // Fallthrough to 401 error
+  }
+
+  return res.status(401).json({ error: 'Session expired or token invalid. Please log in again.' });
 }
 
 // Express Middleware: Optional User (allows unauthenticated if token not provided)
-export function optionalUser(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+export async function optionalUser(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.split(' ')[1];
     try {
       const decoded = jwt.verify(token, JWT_SECRET) as TokenPayload;
-      req.user = decoded;
+      if (decoded && decoded.userId) {
+        req.user = decoded;
+        return next();
+      }
     } catch {
-      // Ignore if optional
+      // Ignore and check Firebase ID token
+    }
+
+    try {
+      const adminApp = getFirebaseAdminApp();
+      if (adminApp) {
+        const adminAuth = getAuth(adminApp);
+        const decodedFirebase = await adminAuth.verifyIdToken(token);
+        if (decodedFirebase && decodedFirebase.uid) {
+          let profile = await db.findProfileByAuthId(decodedFirebase.uid);
+          if (!profile && decodedFirebase.email) {
+            profile = await db.findProfileByEmail(decodedFirebase.email);
+          }
+          if (profile) {
+            req.user = {
+              userId: profile.id,
+              authUserId: profile.auth_user_id,
+              email: profile.email,
+              name: profile.name,
+              role: (decodedFirebase.role as UserRole) || profile.role,
+            };
+          }
+        }
+      }
+    } catch {
+      // Optional user, ignore errors
     }
   }
   next();

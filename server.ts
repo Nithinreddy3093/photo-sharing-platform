@@ -1,36 +1,11 @@
 import express from 'express';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
-import apiRoutes from './server/routes.ts';
+import { app } from './server/app.ts';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const PORT = 3000;
 
 async function startServer() {
-  const app = express();
-  const PORT = 3000;
-
-  // Body parsers
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
-
-  // Request logger in development
-  app.use((req, res, next) => {
-    if (req.path.startsWith('/api')) {
-      console.log(`[API] ${req.method} ${req.path}`);
-    }
-    next();
-  });
-
-  // Mount API routes FIRST
-  app.use('/api', apiRoutes);
-
-  // Health check
-  app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
-  });
-
   // Vite middleware for development or static serving for production
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
@@ -51,4 +26,10 @@ async function startServer() {
   });
 }
 
-startServer();
+// Only start listening in server mode (not when imported as a module in serverless/tests)
+if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
+  startServer();
+}
+
+export default app;
+

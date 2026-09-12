@@ -1,4 +1,4 @@
-import { getApps, initializeApp, type App } from 'firebase-admin/app';
+import { getApps, initializeApp, cert, type App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import fs from 'fs';
@@ -8,20 +8,33 @@ let adminApp: App | null = null;
 
 /**
  * Initializes and returns the Firebase Admin SDK App.
- * Configured using firebase-applet-config.json and environment overrides.
+ * Configured using firebase-applet-config.json and server environment variables.
  */
 export function getFirebaseAdminApp(): App | null {
   if (adminApp) return adminApp;
 
   try {
-    const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
     let projectId = process.env.FIREBASE_PROJECT_ID;
     let storageBucket = process.env.FIREBASE_STORAGE_BUCKET;
 
-    if (fs.existsSync(configPath)) {
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-      projectId = projectId || config.projectId;
-      storageBucket = storageBucket || config.storageBucket;
+    // Check multiple candidate locations for firebase-applet-config.json
+    const candidatePaths = [
+      path.resolve(process.cwd(), 'firebase-applet-config.json'),
+      path.resolve(process.cwd(), 'dist', 'firebase-applet-config.json'),
+      path.resolve('/tmp', 'firebase-applet-config.json'),
+    ];
+
+    for (const configPath of candidatePaths) {
+      if (fs.existsSync(configPath)) {
+        try {
+          const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+          projectId = projectId || config.projectId;
+          storageBucket = storageBucket || config.storageBucket;
+          break;
+        } catch {
+          // continue checking
+        }
+      }
     }
 
     if (!projectId) {
@@ -38,11 +51,32 @@ export function getFirebaseAdminApp(): App | null {
       return adminApp;
     }
 
-    adminApp = initializeApp({
+    // Determine credential setup if provided in environment
+    let credentialOption: any = undefined;
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+      try {
+        const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+        credentialOption = cert(sa);
+      } catch (e) {
+        console.warn('[Firebase Admin] Could not parse FIREBASE_SERVICE_ACCOUNT_KEY JSON');
+      }
+    } else if (process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+      credentialOption = cert({
+        projectId,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      });
+    }
+
+    const initOptions: any = {
       projectId,
       storageBucket,
-    });
+    };
+    if (credentialOption) {
+      initOptions.credential = credentialOption;
+    }
 
+    adminApp = initializeApp(initOptions);
     return adminApp;
   } catch (err) {
     console.warn('[Firebase Admin] Initialization notice:', (err as Error).message);

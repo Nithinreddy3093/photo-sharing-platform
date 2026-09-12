@@ -4,10 +4,17 @@ import crypto from 'crypto';
 import { getStorage } from 'firebase-admin/storage';
 import { getFirebaseAdminApp } from './firebaseAdmin.ts';
 
-// Local storage directory for development / container fallback
-const LOCAL_STORAGE_DIR = path.join(process.cwd(), 'uploads');
-if (!fs.existsSync(LOCAL_STORAGE_DIR)) {
-  fs.mkdirSync(LOCAL_STORAGE_DIR, { recursive: true });
+// Local storage directory for development / container / serverless fallback
+const LOCAL_STORAGE_DIR = process.env.VERCEL
+  ? path.join('/tmp', 'uploads')
+  : path.join(process.cwd(), 'uploads');
+
+try {
+  if (!fs.existsSync(LOCAL_STORAGE_DIR)) {
+    fs.mkdirSync(LOCAL_STORAGE_DIR, { recursive: true });
+  }
+} catch {
+  // If read-only filesystem or restricted permissions, safely ignore
 }
 
 // Allowed MIME types and size limit (10 MB)

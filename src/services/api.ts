@@ -35,6 +35,26 @@ export function clearAuthSession() {
   localStorage.removeItem(USER_KEY);
 }
 
+async function parseResponseBody(res: Response): Promise<{ data: any; rawText: string; isJson: boolean }> {
+  const contentType = res.headers.get('content-type') || '';
+  const text = await res.text().catch(() => '');
+
+  if (
+    contentType.includes('application/json') ||
+    (text.trim().startsWith('{') && text.trim().endsWith('}')) ||
+    (text.trim().startsWith('[') && text.trim().endsWith(']'))
+  ) {
+    try {
+      const data = JSON.parse(text);
+      return { data, rawText: text, isJson: true };
+    } catch {
+      // JSON parse failed despite appearance
+    }
+  }
+
+  return { data: null, rawText: text, isJson: false };
+}
+
 async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
   const token = getStoredToken();
   const headers = new Headers(options.headers || {});
@@ -47,14 +67,29 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
     headers.set('Content-Type', 'application/json');
   }
 
-  const res = await fetch(url, { ...options, headers });
-  const data = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    throw new Error(data.error || `HTTP error! status: ${res.status}`);
+  let res: Response;
+  try {
+    res = await fetch(url, { ...options, headers });
+  } catch (netErr: any) {
+    throw new Error(`Network error connecting to ${url}: ${netErr.message || 'Please check your connection'}`);
   }
 
-  return data as T;
+  const { data, rawText, isJson } = await parseResponseBody(res);
+
+  if (!res.ok) {
+    if (isJson && data && (data.error || data.message)) {
+      throw new Error(data.error || data.message);
+    }
+    if (res.status === 404) {
+      throw new Error(`API endpoint not found (404) at ${url}. Please verify deployment routes.`);
+    }
+    if (rawText && rawText.length > 0 && rawText.length < 150 && !rawText.includes('<!DOCTYPE') && !rawText.includes('<html')) {
+      throw new Error(`HTTP ${res.status}: ${rawText}`);
+    }
+    throw new Error(`HTTP error! status: ${res.status}`);
+  }
+
+  return (isJson ? data : ({} as any)) as T;
 }
 
 export const api = {
@@ -233,21 +268,16 @@ export const api = {
   async getCustomerGalleryInfo(slug: string): Promise<{
     gallery: { id: string; slug: string; eventName: string; publishedAt: string | null };
   }> {
-    const res = await fetch(`/api/gallery/${slug}/info`);
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to load gallery');
-    return data;
+    return request<{
+      gallery: { id: string; slug: string; eventName: string; publishedAt: string | null };
+    }>(`/api/gallery/${slug}/info`);
   },
 
   async verifyCustomerPin(slug: string, pin: string): Promise<CustomerGallerySession> {
-    const res = await fetch(`/api/gallery/${slug}/verify`, {
+    return request<CustomerGallerySession>(`/api/gallery/${slug}/verify`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pin }),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'PIN verification failed');
-    return data;
   },
 
   async getCustomerGalleryPhotos(slug: string, galleryToken: string): Promise<{
@@ -255,18 +285,18 @@ export const api = {
     photoCount: number;
     photos: { id: string; filename: string; file_size: number; created_at: string; url: string }[];
   }> {
-    const res = await fetch(`/api/gallery/${slug}/photos`, {
+    return request<{
+      galleryName: string;
+      photoCount: number;
+      photos: { id: string; filename: string; file_size: number; created_at: string; url: string }[];
+    }>(`/api/gallery/${slug}/photos`, {
       headers: {
         'x-gallery-token': galleryToken,
       },
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to load photos');
-    return data;
   },
 
   async getConfigStatus(): Promise<{ firebaseConfigured: boolean; storageBucket: string }> {
-    const res = await fetch('/api/config-status');
-    return res.json();
+    return request<{ firebaseConfigured: boolean; storageBucket: string }>('/api/config-status');
   },
 };
