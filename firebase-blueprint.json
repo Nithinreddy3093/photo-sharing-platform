@@ -1,0 +1,131 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "User profile with role-based access information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "auth_user_id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "format": "email", "maxLength": 128 },
+        "role": { "type": "string", "enum": ["ADMIN", "TEAM_MEMBER"] },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "auth_user_id", "name", "email", "role", "created_at"]
+    },
+    "AdminRecord": {
+      "title": "Admin Registry",
+      "description": "Trusted admin registry document for role validation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "format": "email", "maxLength": 128 },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "email", "created_at"]
+    },
+    "Event": {
+      "title": "Photography Event",
+      "description": "Event created by an Admin to organize photo sessions and team assignments",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 150 },
+        "description": { "type": "string", "maxLength": 1000 },
+        "created_by": { "type": "string", "maxLength": 128 },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "created_by", "created_at", "updated_at"]
+    },
+    "EventMember": {
+      "title": "Event Member Assignment",
+      "description": "Team member assigned by Admin to collaborate on an event",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "event_id": { "type": "string", "maxLength": 128 },
+        "user_id": { "type": "string", "maxLength": 128 },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "event_id", "user_id", "created_at"]
+    },
+    "Photo": {
+      "title": "Event Photograph",
+      "description": "Photograph uploaded by an assigned team member or admin",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "event_id": { "type": "string", "maxLength": 128 },
+        "uploaded_by": { "type": "string", "maxLength": 128 },
+        "filename": { "type": "string", "maxLength": 255 },
+        "storage_path": { "type": "string", "maxLength": 512 },
+        "file_size": { "type": "number" },
+        "mime_type": { "type": "string", "maxLength": 64 },
+        "created_at": { "type": "string", "format": "date-time" },
+        "is_selected": { "type": "boolean" }
+      },
+      "required": ["id", "event_id", "uploaded_by", "filename", "storage_path", "file_size", "mime_type", "created_at"]
+    },
+    "Gallery": {
+      "title": "Customer Gallery",
+      "description": "Curated customer gallery with PIN security and published status",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "event_id": { "type": "string", "maxLength": 128 },
+        "created_by": { "type": "string", "maxLength": 128 },
+        "slug": { "type": "string", "maxLength": 100, "pattern": "^[a-z0-9-]+$" },
+        "pin_hash": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["DRAFT", "PUBLISHED"] },
+        "published_at": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "event_id", "created_by", "slug", "status", "created_at", "updated_at"]
+    },
+    "GalleryPhoto": {
+      "title": "Selected Gallery Photo",
+      "description": "Mapping record linking an approved photo to a customer gallery",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "gallery_id": { "type": "string", "maxLength": 128 },
+        "photo_id": { "type": "string", "maxLength": 128 },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "gallery_id", "photo_id", "created_at"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Stores user profile and role assignment"
+    },
+    "/admins/{adminId}": {
+      "schema": "AdminRecord",
+      "description": "Stores verified admin authorization records"
+    },
+    "/events/{eventId}": {
+      "schema": "Event",
+      "description": "Stores event metadata created by admins"
+    },
+    "/events/{eventId}/members/{memberId}": {
+      "schema": "EventMember",
+      "description": "Stores assigned team members for an event"
+    },
+    "/events/{eventId}/photos/{photoId}": {
+      "schema": "Photo",
+      "description": "Stores photographs uploaded for an event"
+    },
+    "/galleries/{galleryId}": {
+      "schema": "Gallery",
+      "description": "Stores customer gallery records, slugs, and access statuses"
+    },
+    "/galleries/{galleryId}/photos/{photoId}": {
+      "schema": "GalleryPhoto",
+      "description": "Stores curated photographs published in customer galleries"
+    }
+  }
+}

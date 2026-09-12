@@ -1,0 +1,62 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Default catch-all deny
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.role == 'ADMIN' ||
+        firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isAssignedMember(eventId) {
+      return isSignedIn() && (
+        isAdmin() ||
+        firestore.exists(/databases/(default)/documents/events/$(eventId)/members/$(request.auth.uid))
+      );
+    }
+
+    function isValidImage() {
+      return request.resource.contentType.matches('image/(jpeg|png|webp)') &&
+        request.resource.size <= 10 * 1024 * 1024; // Max 10MB
+    }
+
+    function isValidPhotoId(photoId) {
+      return photoId.size() > 0 && photoId.size() <= 200 &&
+        photoId.matches('^[a-zA-Z0-9._-]+$');
+    }
+
+    // Event scoped photo storage: events/{eventId}/photos/{photoId}
+    match /events/{eventId}/photos/{photoId} {
+      // Direct client download/read: must be signed in and assigned to event, or an admin
+      allow read: if isSignedIn() && (isAdmin() || isAssignedMember(eventId));
+
+      // Uploads: must be signed-in team member assigned to event or admin, with valid image type and size
+      allow create: if isSignedIn() &&
+        isAssignedMember(eventId) &&
+        isValidPhotoId(photoId) &&
+        isValidImage();
+
+      // Updates: only admins or original uploader if metadata matches
+      allow update: if isSignedIn() &&
+        isValidPhotoId(photoId) &&
+        isValidImage() &&
+        (isAdmin() || (isAssignedMember(eventId) && request.auth.uid == request.resource.metadata.uploaded_by));
+
+      // Deletions: admins can delete any photo; members can only delete photos they uploaded
+      allow delete: if isSignedIn() &&
+        (isAdmin() || (isAssignedMember(eventId) && request.auth.uid == resource.metadata.uploaded_by));
+    }
+  }
+}

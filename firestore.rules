@@ -1,0 +1,283 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Catch-all Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // Core Helper Functions
+    // =========================================================================
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Checks if current user is an assigned member of an event
+    function isEventMember(eventId) {
+      return isSignedIn() && (
+        isAdmin() ||
+        exists(/databases/$(database)/documents/events/$(eventId)/members/$(request.auth.uid))
+      );
+    }
+
+    // =========================================================================
+    // Entity Schema Validators
+    // =========================================================================
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['id', 'auth_user_id', 'name', 'email', 'role', 'created_at']) &&
+        data.id is string && isValidId(data.id) &&
+        data.auth_user_id is string && isValidId(data.auth_user_id) &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+        data.email is string && data.email.size() > 3 && data.email.size() <= 128 &&
+        data.role in ['ADMIN', 'TEAM_MEMBER'] &&
+        data.created_at is string && data.created_at.size() <= 64;
+    }
+
+    function isValidEvent(data) {
+      return data.keys().hasAll(['id', 'name', 'created_by', 'created_at', 'updated_at']) &&
+        data.id is string && isValidId(data.id) &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 150 &&
+        (!('description' in data) || (data.description is string && data.description.size() <= 1000)) &&
+        data.created_by is string && isValidId(data.created_by) &&
+        data.created_at is string && data.created_at.size() <= 64 &&
+        data.updated_at is string && data.updated_at.size() <= 64;
+    }
+
+    function isValidEventMember(data) {
+      return data.keys().hasAll(['id', 'event_id', 'user_id', 'created_at']) &&
+        data.id is string && isValidId(data.id) &&
+        data.event_id is string && isValidId(data.event_id) &&
+        data.user_id is string && isValidId(data.user_id) &&
+        data.created_at is string && data.created_at.size() <= 64;
+    }
+
+    function isValidPhoto(data) {
+      return data.keys().hasAll(['id', 'event_id', 'uploaded_by', 'filename', 'storage_path', 'file_size', 'mime_type', 'created_at']) &&
+        data.id is string && isValidId(data.id) &&
+        data.event_id is string && isValidId(data.event_id) &&
+        data.uploaded_by is string && isValidId(data.uploaded_by) &&
+        data.filename is string && data.filename.size() > 0 && data.filename.size() <= 255 &&
+        data.storage_path is string && data.storage_path.size() > 0 && data.storage_path.size() <= 512 &&
+        data.file_size is number && data.file_size > 0 &&
+        data.mime_type is string && data.mime_type.size() <= 64 &&
+        data.created_at is string && data.created_at.size() <= 64 &&
+        (!('is_selected' in data) || data.is_selected is bool);
+    }
+
+    function isValidGallery(data) {
+      return data.keys().hasAll(['id', 'event_id', 'created_by', 'slug', 'status', 'created_at', 'updated_at']) &&
+        data.id is string && isValidId(data.id) &&
+        data.event_id is string && isValidId(data.event_id) &&
+        data.created_by is string && isValidId(data.created_by) &&
+        data.slug is string && data.slug.size() > 0 && data.slug.size() <= 100 && data.slug.matches('^[a-z0-9\\-]+$') &&
+        (!('pin_hash' in data)) &&
+        data.status in ['DRAFT', 'PUBLISHED'] &&
+        (!('published_at' in data) || data.published_at == null || data.published_at is string) &&
+        data.created_at is string && data.created_at.size() <= 64 &&
+        data.updated_at is string && data.updated_at.size() <= 64;
+    }
+
+    function isValidGalleryPhoto(data) {
+      return data.keys().hasAll(['id', 'gallery_id', 'photo_id', 'created_at']) &&
+        data.id is string && isValidId(data.id) &&
+        data.gallery_id is string && isValidId(data.gallery_id) &&
+        data.photo_id is string && isValidId(data.photo_id) &&
+        data.created_at is string && data.created_at.size() <= 64;
+    }
+
+    // =========================================================================
+    // Security Rules
+    // =========================================================================
+
+    // 1. Users Collection
+    match /users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow list: if isSignedIn();
+
+      allow create: if isSignedIn() &&
+        isValidId(userId) &&
+        request.auth.uid == userId &&
+        isValidUserProfile(incoming()) &&
+        incoming().auth_user_id == request.auth.uid &&
+        (incoming().role == 'TEAM_MEMBER' || isAdmin());
+
+      allow update: if isSignedIn() &&
+        isValidId(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().auth_user_id == existing().auth_user_id &&
+        (
+          isAdmin() ||
+          (
+            request.auth.uid == userId &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['name'])
+          )
+        );
+
+      allow delete: if isAdmin();
+    }
+
+    // 2. Admins Registry (Server-controlled / Admin only)
+    match /admins/{adminId} {
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      allow create, update, delete: if false; // Provisioned exclusively via secure setup or existing admin
+    }
+
+    // 3. Events Collection
+    match /events/{eventId} {
+      allow get: if isSignedIn() && (isAdmin() || exists(/databases/$(database)/documents/events/$(eventId)/members/$(request.auth.uid)));
+      allow list: if isSignedIn();
+
+      allow create: if isSignedIn() &&
+        isAdmin() &&
+        isValidId(eventId) &&
+        isValidEvent(incoming()) &&
+        incoming().created_by == request.auth.uid;
+
+      allow update: if isSignedIn() &&
+        isAdmin() &&
+        isValidId(eventId) &&
+        isValidEvent(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().created_by == existing().created_by &&
+        incoming().created_at == existing().created_at &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description', 'updated_at']);
+
+      allow delete: if isSignedIn() && isAdmin() && isValidId(eventId);
+
+      // Subcollection: Event Members
+      match /members/{memberId} {
+        allow get: if isSignedIn() && (isAdmin() || request.auth.uid == memberId);
+        allow list: if isSignedIn() && isEventMember(eventId);
+
+        allow create: if isSignedIn() &&
+          isAdmin() &&
+          isValidId(memberId) &&
+          isValidEventMember(incoming()) &&
+          incoming().event_id == eventId &&
+          exists(/databases/$(database)/documents/events/$(eventId));
+
+        allow delete: if isSignedIn() && isAdmin() && isValidId(memberId);
+        allow update: if false;
+      }
+
+      // Subcollection: Event Photos
+      match /photos/{photoId} {
+        allow get: if isSignedIn() && isEventMember(eventId);
+        allow list: if isSignedIn() && isEventMember(eventId);
+
+        allow create: if isSignedIn() &&
+          isEventMember(eventId) &&
+          isValidId(photoId) &&
+          isValidPhoto(incoming()) &&
+          incoming().event_id == eventId &&
+          incoming().uploaded_by == request.auth.uid &&
+          exists(/databases/$(database)/documents/events/$(eventId));
+
+        allow update: if isSignedIn() &&
+          isValidId(photoId) &&
+          isValidPhoto(incoming()) &&
+          incoming().id == existing().id &&
+          incoming().event_id == existing().event_id &&
+          incoming().uploaded_by == existing().uploaded_by &&
+          incoming().created_at == existing().created_at &&
+          (
+            isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['is_selected', 'filename'])
+          );
+
+        allow delete: if isSignedIn() &&
+          isValidId(photoId) &&
+          (isAdmin() || (isEventMember(eventId) && existing().uploaded_by == request.auth.uid));
+      }
+    }
+
+    // 4. Galleries Collection
+    match /galleries/{galleryId} {
+      allow get: if (
+        (resource.data.status == 'PUBLISHED') ||
+        (isSignedIn() && isAdmin())
+      );
+
+      allow list: if isSignedIn() && isAdmin();
+
+      allow create: if isSignedIn() &&
+        isAdmin() &&
+        isValidId(galleryId) &&
+        isValidGallery(incoming()) &&
+        incoming().created_by == request.auth.uid &&
+        exists(/databases/$(database)/documents/events/$(incoming().event_id));
+
+      allow update: if isSignedIn() &&
+        isAdmin() &&
+        isValidId(galleryId) &&
+        isValidGallery(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().event_id == existing().event_id &&
+        incoming().created_by == existing().created_by &&
+        incoming().created_at == existing().created_at &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['slug', 'status', 'published_at', 'updated_at']);
+
+      allow delete: if isSignedIn() && isAdmin() && isValidId(galleryId);
+
+      // Subcollection: Gallery Photos
+      match /photos/{photoId} {
+        allow get: if (
+          get(/databases/$(database)/documents/galleries/$(galleryId)).data.status == 'PUBLISHED' ||
+          (isSignedIn() && isAdmin())
+        );
+
+        allow list: if (
+          get(/databases/$(database)/documents/galleries/$(galleryId)).data.status == 'PUBLISHED' ||
+          (isSignedIn() && isAdmin())
+        );
+
+        allow create: if isSignedIn() &&
+          isAdmin() &&
+          isValidId(photoId) &&
+          isValidGalleryPhoto(incoming()) &&
+          incoming().gallery_id == galleryId;
+
+        allow delete: if isSignedIn() && isAdmin() && isValidId(photoId);
+        allow update: if false;
+      }
+    }
+
+    // 5. Gallery Secrets (PIN hashes) - Strictly restricted, Admin/Server only
+    match /gallery_secrets/{secretId} {
+      allow read, write: if false; // Privileged server-side operations only
+    }
+
+    // 6. Global Photos Collection
+    match /photos/{photoId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create, update, delete: if isSignedIn() && (isAdmin() || request.auth.uid == incoming().uploaded_by);
+    }
+  }
+}

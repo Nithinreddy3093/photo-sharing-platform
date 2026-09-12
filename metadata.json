@@ -1,0 +1,6 @@
+{
+  "name": "Photo Sharing Platform",
+  "description": "Collaborative photo-sharing and event management platform with role-based access, team uploads, admin photo curation, and secure PIN-protected customer galleries.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
