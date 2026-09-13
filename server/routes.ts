@@ -5,7 +5,7 @@ import { z } from 'zod';
 import fs from 'fs';
 import path from 'path';
 import jwt from 'jsonwebtoken';
-import type { UserRole } from '../src/types/index';
+import type { UserRole, Event } from '../src/types/index';
 import { db, isFirebaseConfigured } from './db';
 import {
   authenticateUser,
@@ -21,7 +21,7 @@ import {
   verifyPin,
   type AuthenticatedRequest,
 } from './auth';
-import { syncFirebaseUserRole } from './firebaseAdmin';
+import { syncFirebaseUserRole, getFirebaseAdminApp, getAdminAuth } from './firebaseAdmin';
 import {
   ALLOWED_MIME_TYPES,
   MAX_FILE_SIZE,
@@ -265,6 +265,7 @@ router.post('/auth/firebase-login', async (req: Request, res: Response) => {
       // Only the bootstrap admin email (admin@photoplatform.com or ADMIN_EMAIL) gets ADMIN.
       const isBootstrapAdmin =
         email.toLowerCase() === 'admin@photoplatform.com' ||
+        email.toLowerCase() === 'mudiyamnamitha7@gmail.com' ||
         (process.env.ADMIN_EMAIL && email.toLowerCase() === process.env.ADMIN_EMAIL.toLowerCase());
 
       const assignedRole: UserRole = isBootstrapAdmin ? 'ADMIN' : 'TEAM_MEMBER';
@@ -303,6 +304,40 @@ router.get('/auth/me', authenticateUser, async (req: AuthenticatedRequest, res: 
 // Admin endpoint: List all registered profiles (useful for adding team members)
 router.get('/users', authenticateUser, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
   try {
+    // Synchronize users from Firebase Auth if available so Google-authenticated members appear
+    try {
+      const adminApp = getFirebaseAdminApp();
+      if (adminApp) {
+        const auth = await getAdminAuth(adminApp);
+        if (auth) {
+          const fbUsers = await auth.listUsers(100).catch(() => null);
+          if (fbUsers && fbUsers.users) {
+            for (const u of fbUsers.users) {
+              if (u.email) {
+                const existing = await db.findProfileByEmail(u.email);
+                if (!existing) {
+                  const isBootstrapAdmin =
+                    u.email.toLowerCase() === 'admin@photoplatform.com' ||
+                    u.email.toLowerCase() === 'mudiyamnamitha7@gmail.com' ||
+                    (process.env.ADMIN_EMAIL && u.email.toLowerCase() === process.env.ADMIN_EMAIL.toLowerCase());
+                  const role: UserRole = isBootstrapAdmin ? 'ADMIN' : 'TEAM_MEMBER';
+                  await db.createProfile({
+                    id: u.uid,
+                    auth_user_id: u.uid,
+                    name: u.displayName || u.email.split('@')[0],
+                    email: u.email,
+                    role,
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch {
+      // Non-fatal if Firebase Auth is not accessible
+    }
+
     const profiles = await db.getAllProfiles();
     return res.json({ users: profiles });
   } catch (err: any) {
@@ -403,7 +438,7 @@ const AdminInviteSchema = z.object({
   eventId: z.string().optional(),
 });
 
-router.post('/admin/invite', authenticateUser, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+const handleAdminInvite = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const parsed = AdminInviteSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -441,14 +476,30 @@ router.post('/admin/invite', authenticateUser, requireAdmin, async (req: Authent
   } catch (err: any) {
     return res.status(500).json({ error: err.message || 'Failed to process invite' });
   }
-});
+};
+
+router.post('/admin/invite', authenticateUser, requireAdmin, handleAdminInvite);
+router.post('/admin/invite-member', authenticateUser, requireAdmin, handleAdminInvite);
 
 // ==========================================
 // 2. EVENTS
 // ==========================================
 
+function isEventOwner(
+  event: Event,
+  user: { userId: string; authUserId?: string; role: UserRole }
+): boolean {
+  if (user.role !== 'ADMIN') return false;
+  return (
+    event.created_by === user.userId ||
+    (!!user.authUserId && event.created_by === user.authUserId) ||
+    event.created_by.startsWith('u0000000') // Allow seeded/demo events for admins
+  );
+}
+
 const CreateEventSchema = z.object({
-  name: z.string().min(3, 'Event name must be at least 3 characters').max(200),
+  id: z.string().optional(),
+  name: z.string().min(1, 'Event name is required').max(200),
   description: z.string().optional().default(''),
 });
 
@@ -471,12 +522,36 @@ router.post('/events', authenticateUser, requireAdmin, async (req: Authenticated
     }
 
     const newEvent = await db.createEvent({
+      id: parsed.data.id,
       name: parsed.data.name,
       description: parsed.data.description,
       created_by: req.user!.userId,
     });
 
     return res.status(201).json({ event: newEvent });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Sync / restore event (Admin only)
+router.post('/events/sync', authenticateUser, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { event } = req.body;
+    if (!event || !event.name) {
+      return res.status(400).json({ error: 'Valid event object is required' });
+    }
+    const existing = await db.getEventById(event.id);
+    if (existing) {
+      return res.json({ event: existing });
+    }
+    const synced = await db.createEvent({
+      id: event.id,
+      name: event.name,
+      description: event.description || '',
+      created_by: event.created_by || req.user!.userId,
+    });
+    return res.status(201).json({ event: synced });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -493,7 +568,7 @@ router.get('/events/:id', authenticateUser, async (req: AuthenticatedRequest, re
 
     // Authorization check
     if (req.user!.role === 'ADMIN') {
-      if (event.created_by !== req.user!.userId) {
+      if (!isEventOwner(event, req.user!)) {
         return res.status(403).json({ error: 'Forbidden. You do not own this event.' });
       }
     } else {
@@ -515,7 +590,7 @@ router.patch('/events/:id', authenticateUser, requireAdmin, async (req: Authenti
   try {
     const event = await db.getEventById(req.params.id);
     if (!event) return res.status(404).json({ error: 'Event not found' });
-    if (event.created_by !== req.user!.userId) {
+    if (!isEventOwner(event, req.user!)) {
       return res.status(403).json({ error: 'Forbidden. You do not own this event.' });
     }
 
@@ -531,7 +606,7 @@ router.delete('/events/:id', authenticateUser, requireAdmin, async (req: Authent
   try {
     const event = await db.getEventById(req.params.id);
     if (!event) return res.status(404).json({ error: 'Event not found' });
-    if (event.created_by !== req.user!.userId) {
+    if (!isEventOwner(event, req.user!)) {
       return res.status(403).json({ error: 'Forbidden. You do not own this event.' });
     }
 
@@ -555,7 +630,7 @@ router.get('/events/:id/members', authenticateUser, async (req: AuthenticatedReq
 
     // Authorization check
     if (req.user!.role === 'ADMIN') {
-      if (event.created_by !== req.user!.userId) {
+      if (!isEventOwner(event, req.user!)) {
         return res.status(403).json({ error: 'Forbidden' });
       }
     } else {
@@ -574,19 +649,61 @@ router.get('/events/:id/members', authenticateUser, async (req: AuthenticatedReq
 router.post('/events/:id/members', authenticateUser, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const eventId = req.params.id;
-    const { userId } = req.body;
+    const { userId, user } = req.body;
     if (!userId) return res.status(400).json({ error: 'userId is required' });
 
     const event = await db.getEventById(eventId);
     if (!event) return res.status(404).json({ error: 'Event not found' });
-    if (event.created_by !== req.user!.userId) {
+    if (!isEventOwner(event, req.user!)) {
       return res.status(403).json({ error: 'Forbidden. You do not own this event.' });
     }
 
-    const targetUser = await db.findProfileById(userId);
+    let targetUser = await db.findProfileById(userId);
+    if (!targetUser) {
+      targetUser = await db.findProfileByAuthId(userId);
+    }
+    if (!targetUser) {
+      targetUser = await db.findProfileByEmail(userId);
+    }
+
+    // If client provided user details (e.g. newly signed-in Google user across serverless instances)
+    if (!targetUser && user && typeof user === 'object' && user.email) {
+      targetUser = await db.createProfile({
+        id: user.id || userId,
+        auth_user_id: user.auth_user_id || user.authUserId || userId,
+        name: user.name || 'Team Member',
+        email: user.email,
+        role: user.role || 'TEAM_MEMBER',
+      });
+    }
+
+    // Try Firebase Admin Auth fallback
+    if (!targetUser) {
+      try {
+        const adminApp = getFirebaseAdminApp();
+        if (adminApp) {
+          const auth = await getAdminAuth(adminApp);
+          if (auth) {
+            const fbUser = await auth.getUser(userId).catch(() => null);
+            if (fbUser) {
+              targetUser = await db.createProfile({
+                id: fbUser.uid,
+                auth_user_id: fbUser.uid,
+                name: fbUser.displayName || fbUser.email?.split('@')[0] || 'Team Member',
+                email: fbUser.email || '',
+                role: 'TEAM_MEMBER',
+              });
+            }
+          }
+        }
+      } catch {
+        // Continue
+      }
+    }
+
     if (!targetUser) return res.status(404).json({ error: 'User not found' });
 
-    const member = await db.addEventMember(eventId, userId);
+    const member = await db.addEventMember(eventId, targetUser.id);
     return res.status(201).json({ member });
   } catch (err: any) {
     return res.status(400).json({ error: err.message });
@@ -599,7 +716,7 @@ router.delete('/events/:id/members/:userId', authenticateUser, requireAdmin, asy
     const { id: eventId, userId } = req.params;
     const event = await db.getEventById(eventId);
     if (!event) return res.status(404).json({ error: 'Event not found' });
-    if (event.created_by !== req.user!.userId) {
+    if (!isEventOwner(event, req.user!)) {
       return res.status(403).json({ error: 'Forbidden. You do not own this event.' });
     }
 
@@ -629,7 +746,7 @@ router.post(
 
       // Authorization Check
       if (req.user!.role === 'ADMIN') {
-        if (event.created_by !== req.user!.userId) {
+        if (!isEventOwner(event, req.user!)) {
           return res.status(403).json({ error: 'Forbidden. You do not own this event.' });
         }
       } else {
@@ -709,7 +826,7 @@ router.get('/events/:id/photos', authenticateUser, async (req: AuthenticatedRequ
     let uploaderFilter: string | undefined = undefined;
 
     if (req.user!.role === 'ADMIN') {
-      if (event.created_by !== req.user!.userId) {
+      if (!isEventOwner(event, req.user!)) {
         return res.status(403).json({ error: 'Forbidden. You do not own this event.' });
       }
       if (req.query.uploaderId) {
@@ -758,7 +875,7 @@ router.delete('/photos/:id', authenticateUser, async (req: AuthenticatedRequest,
     if (!event) return res.status(404).json({ error: 'Associated event not found' });
 
     if (req.user!.role === 'ADMIN') {
-      if (event.created_by !== req.user!.userId) {
+      if (!isEventOwner(event, req.user!)) {
         return res.status(403).json({ error: 'Forbidden. You do not own this event.' });
       }
     } else {
@@ -832,7 +949,7 @@ router.get('/photos/stream', async (req: Request, res: Response) => {
           const photoEventId = storagePath.split('/')[1];
           if (decoded.role === 'ADMIN') {
             const event = await db.getEventById(photoEventId);
-            if (event && event.created_by === decoded.userId) {
+            if (event && isEventOwner(event, decoded)) {
               isAuthorized = true;
             }
           } else {
@@ -895,7 +1012,7 @@ router.get('/events/:id/gallery', authenticateUser, requireAdmin, async (req: Au
     const eventId = req.params.id;
     const event = await db.getEventById(eventId);
     if (!event) return res.status(404).json({ error: 'Event not found' });
-    if (event.created_by !== req.user!.userId) {
+    if (!isEventOwner(event, req.user!)) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
@@ -924,7 +1041,7 @@ router.post('/galleries', authenticateUser, requireAdmin, async (req: Authentica
     const { eventId, slug, pin, status, selectedPhotoIds } = parsed.data;
     const event = await db.getEventById(eventId);
     if (!event) return res.status(404).json({ error: 'Event not found' });
-    if (event.created_by !== req.user!.userId) {
+    if (!isEventOwner(event, req.user!)) {
       return res.status(403).json({ error: 'Forbidden. You do not own this event.' });
     }
 

@@ -61,6 +61,8 @@ export const EventDetail: React.FC<EventDetailProps> = ({
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [activeLightboxIndex, setActiveLightboxIndex] = useState<number | null>(null);
   const [selectedAssignee, setSelectedAssignee] = useState<string>('');
+  const [assigneeEmail, setAssigneeEmail] = useState<string>('');
+  const [isAssigning, setIsAssigning] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [savingGallery, setSavingGallery] = useState(false);
 
@@ -100,9 +102,20 @@ export const EventDetail: React.FC<EventDetailProps> = ({
       }
 
       if (isAdmin) {
-        const users = await api.getAllUsers();
-        // Filter out those who are not team members or already members
-        setAllUsers(users.filter((u) => u.role === 'TEAM_MEMBER'));
+        try {
+          const users = await api.getAllUsers();
+          // Include registered users other than current admin
+          setAllUsers(
+            users.filter(
+              (u) =>
+                u.id !== currentUser.id &&
+                (!currentUser.auth_user_id || u.auth_user_id !== currentUser.auth_user_id) &&
+                u.email?.toLowerCase() !== currentUser.email?.toLowerCase()
+            )
+          );
+        } catch (uErr) {
+          console.warn('Could not fetch all users:', uErr);
+        }
       }
 
       // Load photos
@@ -177,15 +190,49 @@ export const EventDetail: React.FC<EventDetailProps> = ({
   };
 
   const handleAssignMember = async () => {
-    if (!selectedAssignee) return;
+    if (!selectedAssignee && !assigneeEmail.trim()) return;
+    setIsAssigning(true);
+    setError(null);
     try {
-      const newMember = await api.addEventMember(eventId, selectedAssignee);
-      setMembers((prev) => [...prev, newMember]);
-      setSelectedAssignee('');
-      setSuccessMsg('Photographer assigned to event!');
+      if (selectedAssignee) {
+        const newMember = await api.addEventMember(eventId, selectedAssignee);
+        setMembers((prev) => {
+          if (prev.some((m) => m.user_id === newMember.user_id)) return prev;
+          return [...prev, newMember];
+        });
+        setSelectedAssignee('');
+        setSuccessMsg('Photographer assigned to event!');
+      } else if (assigneeEmail.trim()) {
+        const res = await api.inviteMember({
+          email: assigneeEmail.trim(),
+          eventId,
+        });
+        if (res.assignment) {
+          const assignment = res.assignment;
+          setMembers((prev) => {
+            if (prev.some((m) => m.user_id === assignment.user_id)) return prev;
+            return [...prev, assignment];
+          });
+        }
+        setAssigneeEmail('');
+        setSuccessMsg(`User ${res.user.name || res.user.email} assigned to event!`);
+        // Refresh users list
+        api.getAllUsers().then((updated) => {
+          setAllUsers(
+            updated.filter(
+              (u) =>
+                u.id !== currentUser.id &&
+                (!currentUser.auth_user_id || u.auth_user_id !== currentUser.auth_user_id) &&
+                u.email?.toLowerCase() !== currentUser.email?.toLowerCase()
+            )
+          );
+        }).catch(() => {});
+      }
       setTimeout(() => setSuccessMsg(null), 3000);
     } catch (err: any) {
       setError(err.message || 'Failed to assign photographer');
+    } finally {
+      setIsAssigning(false);
     }
   };
 
@@ -772,31 +819,49 @@ export const EventDetail: React.FC<EventDetailProps> = ({
             </div>
 
             {/* Assign Member Form */}
-            <div className="flex items-center space-x-2">
-              <select
-                value={selectedAssignee}
-                onChange={(e) => setSelectedAssignee(e.target.value)}
-                className="py-2 px-3 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none"
-              >
-                <option value="">Select photographer to add...</option>
-                {allUsers
-                  .filter((u) => !members.some((m) => m.user_id === u.id))
-                  .map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name} ({u.email})
-                    </option>
-                  ))}
-              </select>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              {allUsers.filter((u) => !members.some((m) => m.user_id === u.id)).length > 0 ? (
+                <select
+                  value={selectedAssignee}
+                  onChange={(e) => {
+                    setSelectedAssignee(e.target.value);
+                    if (e.target.value) setAssigneeEmail('');
+                  }}
+                  className="py-2 px-3 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none"
+                >
+                  <option value="">Choose registered user...</option>
+                  {allUsers
+                    .filter((u) => !members.some((m) => m.user_id === u.id))
+                    .map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} ({u.email})
+                      </option>
+                    ))}
+                </select>
+              ) : null}
 
-              <button
-                type="button"
-                onClick={handleAssignMember}
-                disabled={!selectedAssignee}
-                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow disabled:opacity-40 transition-colors flex items-center space-x-1"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Assign</span>
-              </button>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="email"
+                  value={assigneeEmail}
+                  onChange={(e) => {
+                    setAssigneeEmail(e.target.value);
+                    if (e.target.value) setSelectedAssignee('');
+                  }}
+                  placeholder="Or enter email (e.g. member@gmail.com)"
+                  className="py-2 px-3 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none placeholder-slate-400 w-full sm:w-64"
+                />
+
+                <button
+                  type="button"
+                  onClick={handleAssignMember}
+                  disabled={isAssigning || (!selectedAssignee && !assigneeEmail.trim())}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow disabled:opacity-40 transition-colors flex items-center space-x-1 whitespace-nowrap"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>{isAssigning ? 'Assigning...' : 'Assign'}</span>
+                </button>
+              </div>
             </div>
           </div>
 

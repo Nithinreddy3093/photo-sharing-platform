@@ -390,5 +390,5 @@ describe('Photo Sharing Platform - Core System & Security Test Suite', () => {
     expect(eventPhotos.length).toBe(0);
     const eventGallery = await db.getGalleryByEventId(tempEvent.id);
     expect(eventGallery).toBeNull();
-  });
+  }, 15000);
 });

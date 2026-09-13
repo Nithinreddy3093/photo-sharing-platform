@@ -13,6 +13,7 @@ import {
   Database,
   Clock,
   Sparkles,
+  AlertCircle,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { Event, DashboardStats, UserProfile } from '../types/index';
@@ -39,6 +40,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [newEventName, setNewEventName] = useState('');
   const [newEventDesc, setNewEventDesc] = useState('');
   const [creatingEvent, setCreatingEvent] = useState(false);
+  const [createEventError, setCreateEventError] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -67,6 +69,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     if (!newEventName.trim()) return;
 
     setCreatingEvent(true);
+    setCreateEventError(null);
     try {
       const created = await api.createEvent({
         name: newEventName.trim(),
@@ -78,7 +81,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setNewEventDesc('');
       onSelectEvent(created.id);
     } catch (err: any) {
-      alert(err.message || 'Failed to create event');
+      setCreateEventError(err.message || 'Failed to create event. Please try again.');
     } finally {
       setCreatingEvent(false);
     }
@@ -284,6 +287,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <p className="text-xs text-slate-500">
               Set up a new event for team members to collaborate and upload photographs.
             </p>
+
+            {createEventError && (
+              <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 rounded-xl text-xs flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{createEventError}</span>
+              </div>
+            )}
 
             <form onSubmit={handleCreateEvent} className="space-y-4">
               <div>

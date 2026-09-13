@@ -110,6 +110,26 @@ export async function authenticateUser(req: AuthenticatedRequest, res: Response,
             profile = await db.findProfileByEmail(decodedFirebase.email);
           }
 
+          if (!profile) {
+            const isBootstrapAdmin =
+              (decodedFirebase.email && (
+                decodedFirebase.email.toLowerCase() === 'admin@photoplatform.com' ||
+                decodedFirebase.email.toLowerCase() === 'mudiyamnamitha7@gmail.com'
+              )) ||
+              (process.env.ADMIN_EMAIL && decodedFirebase.email?.toLowerCase() === process.env.ADMIN_EMAIL.toLowerCase()) ||
+              decodedFirebase.role === 'ADMIN';
+
+            const assignedRole: UserRole = isBootstrapAdmin ? 'ADMIN' : ((decodedFirebase.role as UserRole) || 'TEAM_MEMBER');
+
+            profile = await db.createProfile({
+              id: decodedFirebase.uid,
+              auth_user_id: decodedFirebase.uid,
+              email: (decodedFirebase.email || '').toLowerCase(),
+              name: decodedFirebase.name || decodedFirebase.email?.split('@')[0] || 'User',
+              role: assignedRole,
+            });
+          }
+
           if (profile) {
             req.user = {
               userId: profile.id,

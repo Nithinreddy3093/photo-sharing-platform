@@ -186,12 +186,24 @@ export const api = {
     return res.members;
   },
 
-  async addEventMember(eventId: string, userId: string): Promise<EventMember> {
+  async addEventMember(eventId: string, userId: string, user?: Partial<UserProfile>): Promise<EventMember> {
     const res = await request<{ member: EventMember }>(`/api/events/${eventId}/members`, {
       method: 'POST',
-      body: JSON.stringify({ userId }),
+      body: JSON.stringify({ userId, user }),
     });
     return res.member;
+  },
+
+  async inviteMember(data: { name?: string; email: string; eventId?: string; role?: 'ADMIN' | 'TEAM_MEMBER' }): Promise<{ user: UserProfile; assignment?: EventMember; message: string }> {
+    return request<{ user: UserProfile; assignment?: EventMember; message: string }>('/api/admin/invite', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: data.name || data.email.split('@')[0],
+        email: data.email,
+        eventId: data.eventId,
+        role: data.role || 'TEAM_MEMBER',
+      }),
+    });
   },
 
   async removeEventMember(eventId: string, userId: string): Promise<void> {
