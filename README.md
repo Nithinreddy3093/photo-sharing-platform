@@ -6,9 +6,9 @@ A full-stack photo sharing platform designed for professional photography teams 
 
 The platform enables Admins to create and manage events, assign photographers, review and curate uploaded photos, and publish secure customer galleries. Team Members can upload photos to their assigned events, while Customers can access published galleries using a shareable URL and PIN.
 
-🚀 Live Demo
+🚀 Live Demo 
 
-Production Application: YOUR_VERCEL_PRODUCTION_URL
+Production Application: https://photo-sharing-platform-kappa.vercel.app/
 
 Demo Admin
 
@@ -864,51 +864,3 @@ Demo Customer Gallery
 
 Gallery: YOUR_VERCEL_PRODUCTION_URL/gallery/summer-gala-2026-vip
 PIN: 4826
-
-📌 Submission Checklist
-
-Before submitting, verify:
-
-Production Vercel URL works
-
-Admin login works in production
-
-Team Member login works in production
-
-Team Member has an assigned event
-
-Admin can create an event
-
-Admin can assign a Team Member
-
-Team Member can upload photos
-
-Uploaded photos persist after refresh/login
-
-Admin can review and select photos
-
-Admin can create and publish a gallery
-
-Gallery PIN works
-
-Wrong PIN is rejected
-
-Customer can view published photos
-
-Unpublished photos are not visible to customers
-
-Team Member cannot publish galleries
-
-Team Member cannot access unassigned events
-
-GitHub repository is accessible
-
-README contains the final production URL
-
-README contains valid demo credentials
-
-README contains the final gallery URL and PIN
-
-No production secrets are committed to GitHub
-
-Built for the TrizenAI Full Stack Internship Challenge.
