@@ -1,5 +1,7 @@
-import app from '../server/app';
+import app from './app.js';
 
 // Vercel Serverless Function entry point
-// Vercel routes incoming requests matching /api/* to this Express application
+// Re-exports the self-contained bundled Express application
 export default app;
+
+
