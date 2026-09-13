@@ -1,243 +1,914 @@
-# Photo Sharing Platform — Collaborative Event Photography
+📸 Photo Sharing Platform — Collaborative Event Photography
 
-> **TrizenAI Full Stack Internship Challenge Submission**  
-> Comprehensive Documentation:  
-> • [Submission Checklist & Evaluation Matrix (`SUBMISSION_CHECKLIST.md`)](./SUBMISSION_CHECKLIST.md)  
-> • [System Architecture & Security Specification (`ARCHITECTURE.md`)](./ARCHITECTURE.md)  
-> • [Firebase Security Rules (`firestore.rules` and `storage.rules`)](./firestore.rules)
+TrizenAI Technologies Private Limited — Full Stack Internship Challenge
 
-A full-stack, production-ready web application designed for professional photography teams and event studios. Built with React 18, TypeScript, Tailwind CSS, an Express-powered API layer, and **Firebase as the single unified backend** (Firebase Authentication, Cloud Firestore, and Firebase Storage).
+A full-stack photo sharing platform designed for professional photography teams and event studios.
 
----
+The platform enables Admins to create and manage events, assign photographers, review and curate uploaded photos, and publish secure customer galleries. Team Members can upload photos to their assigned events, while Customers can access published galleries using a shareable URL and PIN.
 
-## 1. System Architecture
+🚀 Live Demo
 
-```
-                                    +-----------------------+
-                                    |    Client Browsers    |
-                                    +-----------+-----------+
-                                                |
-                 +------------------------------+-------------------------------+
-                 |                              |                               |
-                 v                              v                               v
-        +------------------+          +-------------------+          +---------------------+
-        |   Lead Admin     |          |   Team Member     |          |      Customer       |
-        |   (Dashboard,    |          |   (Photographer   |          |  (URL + PIN Portal, |
-        | Curation, Links) |          |   Upload Studio)  |          | Curated Collection) |
-        +--------+---------+          +---------+---------+          +----------+----------+
-                 |                              |                               |
-                 +------------------------------+-------------------------------+
-                                                | HTTP / REST + JWT
-                                                v
-                               +---------------------------------+
-                               |    Express API & Middleware     |
-                               |  - Role Authentication (JWT)    |
-                               |  - Rate Limiter (PIN Brute-Force|
-                               |  - Multipart File Sanitizer     |
-                               |  - PIN Verifier (bcrypt)        |
-                               +----------------+----------------+
-                                                |
-                      +-------------------------+-------------------------+
-                      |                                                   |
-                      v                                                   v
-        +---------------------------+                       +---------------------------+
-        |   Cloud Firestore         |                       |     Firebase Storage      |
-        |  - users / admins         |                       |  - Private bucket         |
-        |  - events & members       |                       |    (events/{id}/photos)   |
-        |  - photos & metadata      |                       |  - Short-lived signed     |
-        |  - galleries (no PIN hash)|                       |    URLs for security      |
-        |  - gallery_secrets (hash) |                       |  - storage.rules guarded  |
-        |  - firestore.rules        |                       +---------------------------+
-        +---------------------------+
-```
+Production Application: YOUR_VERCEL_PRODUCTION_URL
 
----
+Demo Admin
 
-## 2. Core Workflows & Role Boundaries
+Email: admin@photoplatform.com
 
-### 1. Admin / Lead
-- **Event Creation**: Creates events with titles and descriptions.
-- **Team Assignment**: Adds registered photographers to specific events.
-- **Full Review**: Views all uploaded photographs across the event team, with per-photographer filtering.
-- **Curation**: Toggles inclusion checkboxes to select exact photos for the client gallery.
-- **PIN Configuration**: Sets or regenerates a numerical access PIN (hashed via bcrypt; never stored in plaintext and never stored in the public gallery document).
-- **Publishing & Delivery**: Generates a shareable URL slug (e.g., `/gallery/summer-gala-2026-vip`) and activates public customer access.
+Password: AdminPass123!
 
-### 2. Team Member (Photographer)
-- **Isolation**: Access is strictly limited to assigned events; unassigned events are inaccessible.
-- **Batch Upload**: Multi-file drag & drop and selector supporting JPG, PNG, and WEBP up to 10MB each.
-- **Scoped Visibility**: Can only view and manage their own uploaded photographs.
-- **Restricted Access**: Cannot publish customer galleries, alter PINs, or view unassigned projects.
+Demo Team Member
 
-### 3. Customer
-- **Zero Sign-Up**: No account or password required.
-- **PIN-Protected Access**: Accesses the gallery via unique slug and enters the access PIN.
-- **Brute-Force Guard**: IP and session rate-limiting prevents PIN enumeration (max 5 failed attempts per window).
-- **Curated Delivery**: Only sees photographs explicitly selected and published by the Admin.
-- **Secure Image Viewer**: Fullscreen lightbox viewer with photo metadata and high-resolution downloads.
+Email: team@photoplatform.com
 
----
+Password: TeamPass123!
 
-## 3. Database Schema & Security Rules
+Demo Customer Gallery
 
-The application uses **Cloud Firestore** as its single, unified database:
+Gallery: YOUR_VERCEL_PRODUCTION_URL/gallery/summer-gala-2026-vip
 
-```
+PIN: 4826
+
+⚠️ Verify the demo credentials and gallery URL against the final production deployment before submission.
+
+✨ Features
+
+👨‍💼 Admin / Lead
+
+Secure login and authentication
+
+Create and manage events
+
+Assign Team Members to events
+
+View uploaded photos from event photographers
+
+Filter and review photos
+
+Select photos for customer delivery
+
+Create customer galleries
+
+Configure and regenerate gallery PINs
+
+Publish curated galleries
+
+Generate shareable gallery URLs
+
+View event and photo activity
+
+📷 Team Member / Photographer
+
+Secure login
+
+View assigned events
+
+Upload multiple photos
+
+Drag-and-drop photo upload
+
+JPG, PNG and WEBP support
+
+Maximum 10MB per photo
+
+View own uploaded photos
+
+Event-level access isolation
+
+Cannot publish galleries
+
+Cannot modify other photographers' photos
+
+Cannot access unassigned events
+
+👤 Customer
+
+No account or registration required
+
+Access gallery through a unique URL
+
+PIN-protected gallery access
+
+Brute-force protection
+
+View only Admin-selected and published photos
+
+Responsive photo gallery
+
+Fullscreen/lightbox viewer
+
+High-resolution photo access/download where enabled
+
+🏗️ Technology Stack
+
+Layer
+
+Technology
+
+Frontend
+
+React 18
+
+Language
+
+TypeScript
+
+Styling
+
+Tailwind CSS
+
+Backend API
+
+Express
+
+Authentication
+
+Firebase Authentication + Server-side JWT
+
+Database
+
+Cloud Firestore
+
+Object/File Storage
+
+Firebase Storage
+
+Password/PIN Hashing
+
+bcrypt
+
+Authorization
+
+Server-side role and event access middleware
+
+Testing
+
+Vitest + Firebase Rules Tests
+
+Deployment
+
+Vercel
+
+Source Control
+
+GitHub
+
+Firebase is used as the unified backend for Authentication, Firestore and Storage.
+
+🏛️ System Architecture
+
+                              ┌───────────────────────┐
+                              │    Client Browsers    │
+                              └───────────┬───────────┘
+                                          │
+                ┌─────────────────────────┼─────────────────────────┐
+                │                         │                         │
+                ▼                         ▼                         ▼
+       ┌────────────────┐        ┌────────────────┐        ┌────────────────┐
+       │     Admin      │        │  Team Member   │        │    Customer    │
+       │   Dashboard    │        │ Photo Upload   │        │  Gallery + PIN │
+       │   Curation     │        │ Assigned Events│        │ Curated Photos │
+       └───────┬────────┘        └───────┬────────┘        └───────┬────────┘
+               │                         │                         │
+               └─────────────────────────┼─────────────────────────┘
+                                         │
+                                  HTTP / REST + JWT
+                                         │
+                                         ▼
+                         ┌──────────────────────────────┐
+                         │       Express API            │
+                         │──────────────────────────────│
+                         │ Authentication & Authorization│
+                         │ Role / Event Access Controls │
+                         │ PIN Verification + Rate Limit│
+                         │ File Validation              │
+                         │ Secure Photo Delivery        │
+                         └──────────────┬───────────────┘
+                                        │
+                         ┌──────────────┴──────────────┐
+                         │                             │
+                         ▼                             ▼
+              ┌────────────────────┐       ┌────────────────────┐
+              │   Cloud Firestore  │       │ Firebase Storage   │
+              │────────────────────│       │────────────────────│
+              │ Users / Admins     │       │ Private bucket    │
+              │ Events / Members   │       │ events/{id}/photos│
+              │ Photo Metadata     │       │ Storage Rules     │
+              │ Galleries          │       │ Signed/HMAC Access│
+              │ Gallery Secrets    │       └────────────────────┘
+              └────────────────────┘
+
+🔄 Application Workflow
+
+Admin Login
+     │
+     ▼
+Create Event
+     │
+     ▼
+Assign Team Member
+     │
+     ▼
+Team Member Login
+     │
+     ▼
+Upload Photos
+     │
+     ▼
+Admin Reviews Photos
+     │
+     ▼
+Admin Selects Photos
+     │
+     ▼
+Create Gallery + PIN
+     │
+     ▼
+Publish Gallery
+     │
+     ▼
+Customer Receives URL + PIN
+     │
+     ▼
+Customer Enters PIN
+     │
+     ▼
+Customer Views Published Photos
+
+👥 Role & Permission Boundaries
+
+Admin
+
+Full event management
+
+Team assignment
+
+View all event photos
+
+Photo curation
+
+Gallery creation
+
+Gallery publishing
+
+Gallery PIN management
+
+Team Member
+
+Assigned events only
+
+Own photo uploads
+
+Own uploaded-photo management
+
+No gallery publishing
+
+No gallery PIN management
+
+No access to unassigned events
+
+No management of other users' photos
+
+Customer
+
+No staff account
+
+No access to unpublished galleries
+
+No access to unselected photos
+
+Gallery-scoped temporary session after successful PIN verification
+
+🗄️ Database Schema
+
+The application uses Cloud Firestore for application data.
+
 users/{userId}
-  - id: string
-  - auth_user_id: string
-  - name: string
-  - email: string
+  - id
+  - auth_user_id
+  - name
+  - email
   - role: "ADMIN" | "TEAM_MEMBER"
-  - created_at: string
+  - created_at
 
 admins/{userId}
-  - uid: string
-  - email: string
+  - uid
+  - email
 
 events/{eventId}
-  - id: string
-  - name: string
-  - description: string
-  - created_by: string (Admin user ID)
-  - created_at: string
-  - updated_at: string
+  - id
+  - name
+  - description
+  - created_by
+  - created_at
+  - updated_at
 
 events/{eventId}/members/{memberId}
-  - id: string
-  - event_id: string
-  - user_id: string
-  - created_at: string
+  - id
+  - event_id
+  - user_id
+  - created_at
 
 photos/{photoId}
-  - id: string
-  - event_id: string
-  - uploaded_by: string
-  - filename: string
-  - storage_path: string
-  - file_size: number
-  - mime_type: string
-  - created_at: string
-  - is_selected: boolean
+  - id
+  - event_id
+  - uploaded_by
+  - filename
+  - storage_path
+  - file_size
+  - mime_type
+  - created_at
+  - is_selected
 
-galleries/{galleryId} (Public Document — NEVER contains PIN or PIN hash)
-  - id: string
-  - event_id: string
-  - created_by: string
-  - slug: string
+galleries/{galleryId}
+  - id
+  - event_id
+  - created_by
+  - slug
   - status: "DRAFT" | "PUBLISHED"
-  - published_at: string | null
-  - created_at: string
-  - updated_at: string
+  - published_at
+  - created_at
+  - updated_at
 
-gallery_secrets/{galleryId} (Privileged Document — Admin / Server Only)
-  - id: string
-  - pin_hash: string (bcrypt hash)
-  - created_at: string
+gallery_secrets/{galleryId}
+  - id
+  - pin_hash
+  - created_at
 
 galleries/{galleryId}/photos/{photoId}
-  - id: string
-  - gallery_id: string
-  - photo_id: string
-  - created_at: string
-```
+  - id
+  - gallery_id
+  - photo_id
+  - created_at
 
-### Storage Security (`storage.rules`)
-- Scoped bucket paths: `events/{eventId}/photos/{photoId}`
-- Uploads restricted to authenticated users assigned to the event or admins.
-- Strict MIME type validation: `image/jpeg`, `image/png`, `image/webp`.
-- Maximum file size: 10MB.
-- Photos delivered via short-lived, signed URLs or HMAC signed streaming routes.
+Photo Storage
 
----
+Photo files are not stored directly in Firestore.
 
-## 4. Security Enforcement Matrix
+Actual image files are stored in Firebase Storage:
 
-| Requirement | Implementation Detail |
-|---|---|
-| **Role Authorization** | Verified server-side via `requireAdmin` and `requireEventAccess` middleware. |
-| **Password Storage** | Hashed using bcrypt with 10 salt rounds (`server/auth.ts`). |
-| **Customer PIN Storage** | Hashed using bcrypt; stored exclusively in `gallery_secrets` (never in `galleries`). |
-| **PIN Brute-Force Rate Limiting** | Max 5 failed attempts per 15-minute window before lockout. |
-| **Temporary Customer Session** | Ephemeral JWT scoped strictly to `galleryId` and `slug` (4-hour expiry). |
-| **Customer Photo Isolation** | Returns only photos from `gallery_photos` with status `PUBLISHED`. Team uploads not in the gallery are never sent. |
-| **File Validation** | MIME whitelist: `image/jpeg`, `image/png`, `image/webp`. 10MB size limit per photo. Filenames sanitized against path traversal. |
+events/{eventId}/photos/{photoId}
 
----
+Firestore stores the corresponding metadata and storage path.
 
-## 5. Automated Test Suites (58 Passing Tests)
+🔐 Security
 
-The application includes 58 automated tests spanning three dedicated test suites covering all functional requirements, security boundaries, and adversarial attack vectors:
+Security is enforced at both the API and Firebase levels.
 
-### A. Critical Challenge Requirements (`tests/critical_scenarios.test.ts` — 26 Tests)
-- **1. Admin Requirements (6 tests)**: Registration, bcrypt authentication, event creation, team member assignment, owner access, and IDOR isolation between admins.
-- **2. Team Member Requirements (7 tests)**: Login, assigned event visibility, unassigned event blocking, photo upload, own photo scoping, prohibition from deleting others' photos, and prohibition from publishing galleries.
-- **3. Gallery & Customer Access (8 tests)**: Photo selection/curation, unique URL slugs (409 on collision), draft gallery blocking, publishing transitions, incorrect PIN rejection, correct PIN access, cross-gallery token blocking, and unpublished photo isolation.
-- **4. Upload Scenarios (5 tests)**: Batch uploads, non-image rejection (PDF/exe), 10MB limit enforcement, storage path traversal defense, and byte-exact metadata recording.
+Authentication
 
-### B. Platform & Core API Tests (`tests/platform.test.ts` — 20 Tests)
-- Deep unit and integration tests for password hashing, JWT generation, metric aggregations, rate limiting, and HMAC stream signatures.
+Email/password authentication
 
-### C. Zero-Trust Security Penetration Tests (`tests/firestore.rules.test.ts` — 12 Tests)
-- Evaluates 12 adversarial "Dirty Dozen" security exploits: cross-tenant attacks, role spoofing, unassigned member uploads, and ID poisoning.
+Google Sign-In through Firebase Authentication
 
-### Running the Test Suites
-```bash
+Server-side authentication and role synchronization
+
+Server-issued JWT for application API authorization
+
+Firebase custom claims for role information
+
+Authorization
+
+Server-side requireAdmin
+
+Server-side requireEventAccess
+
+Event-level Team Member isolation
+
+Photo ownership checks
+
+Gallery ownership and publishing checks
+
+Customer gallery-scoped access
+
+Password & PIN Security
+
+Passwords hashed using bcrypt
+
+Gallery PINs stored only as bcrypt hashes
+
+PIN hashes are never stored in the public gallery document
+
+Customer sessions use temporary gallery-scoped JWTs
+
+Customer JWT expiry: 2 hours
+
+PIN Brute-Force Protection
+
+Maximum 5 failed PIN attempts
+
+15-minute lockout window
+
+Rate limiting based on request/session context
+
+Upload Security
+
+JPEG, PNG and WEBP only
+
+Maximum 10MB per file
+
+Filename sanitization
+
+Storage path validation
+
+Protection against path traversal
+
+Authenticated/event-scoped uploads
+
+Customer Photo Isolation
+
+Customers receive only photographs that:
+
+Belong to the requested gallery.
+
+Have been selected by the Admin.
+
+Are available through a published gallery.
+
+Unselected team uploads and unpublished gallery photos are never exposed through the customer API.
+
+🛡️ Firebase Security Rules
+
+The repository includes:
+
+firestore.rules
+
+storage.rules
+
+Firebase Storage rules enforce:
+
+Authentication requirements
+
+Event assignment checks
+
+Admin access
+
+MIME type restrictions
+
+File-size limits
+
+Scoped storage paths
+
+Firestore rules protect:
+
+User data
+
+Events
+
+Event membership
+
+Photo metadata
+
+Gallery data
+
+Ownership fields
+
+Role-sensitive operations
+
+Server-side authorization remains an additional protection layer for API requests.
+
+🧪 Automated Testing
+
+81 Passing Tests
+
+The project includes 81 automated tests covering functional requirements, authorization, security boundaries, API behavior and Firebase security rules.
+
+A. Critical Challenge Requirements — 32 Tests
+
+tests/critical_scenarios.test.ts
+
+Covers:
+
+Admin authentication
+
+Event creation
+
+Team Member assignment
+
+Admin ownership and IDOR isolation
+
+Assigned-event access
+
+Unassigned-event blocking
+
+Photo upload
+
+Own-photo scoping
+
+Protection against deleting other users' photos
+
+Team Member prohibition from publishing galleries
+
+Photo selection and curation
+
+Gallery slug collision handling
+
+Draft gallery protection
+
+Gallery publishing
+
+Incorrect PIN rejection
+
+Correct PIN verification
+
+Cross-gallery token protection
+
+Unpublished photo isolation
+
+Batch uploads
+
+Non-image rejection
+
+10MB file-size enforcement
+
+Storage path traversal protection
+
+Metadata integrity
+
+B. Platform & Core API Tests — 20 Tests
+
+tests/platform.test.ts
+
+Covers:
+
+Password hashing
+
+JWT generation and validation
+
+Metric aggregation
+
+Rate limiting
+
+HMAC photo streaming signatures
+
+Core API behavior
+
+C. Vercel Production API Tests — 17 Tests
+
+Covers production/serverless API behavior including:
+
+Health endpoint
+
+Configuration endpoint
+
+Authentication endpoints
+
+Event APIs
+
+Photo APIs
+
+Gallery APIs
+
+Authorization behavior
+
+Structured API error responses
+
+Production routing and bundling behavior
+
+D. Firebase Firestore Rules Tests — 12 Tests
+
+tests/firestore.rules.test.ts
+
+Covers adversarial security scenarios including:
+
+Cross-tenant access
+
+Role spoofing
+
+Unassigned Team Member access
+
+Unauthorized writes
+
+Ownership tampering
+
+ID poisoning
+
+Protected field modification
+
+Run Tests
+
 npm test
-```
 
----
+🔥 Firebase Integration
 
-## 6. Demo Credentials & Seed Data
+Firebase provides the unified backend services.
 
-For testing and grading, the database includes pre-seeded accounts:
+Firebase Authentication
 
-| Role | Email | Password | Default Access |
-|---|---|---|---|
-| **Lead Admin** | `admin@photoplatform.com` | `AdminPass123!` | Full studio management, all events, curation, PIN settings |
-| **Team Member** | `team@photoplatform.com` | `TeamPass123!` | Assigned to "Summer Gala 2026", upload capability |
-| **Customer Demo** | URL: `/gallery/summer-gala-2026-vip` | PIN: `4826` | Curated, high-resolution photographs |
+Email/password authentication
 
-*The login screen includes one-click "Quick Demo" buttons for testing without manual typing.*
+Google Sign-In
 
----
+Role synchronization
 
-## 7. Firebase Integration & Security Architecture
+Custom claims
 
-The platform is integrated with **Firebase as the single unified backend** on project `gen-lang-client-0384551552`:
-- **Firestore Blueprint (`firebase-blueprint.json`)**: Formulates entities for `UserProfile`, `AdminRecord`, `Event`, `EventMember`, `Photo`, `Gallery`, and `GalleryPhoto`.
-- **Security Rules (`firestore.rules`)**: Deployed with the Eight Pillars of Zero-Trust security rules, including Master Gate subcollection lookups, strict key validation, immutable ownership fields, denial-of-wallet string sizing, and status transitions.
-- **Storage Rules (`storage.rules`)**: Complete security rules enforcing event assignment checks, MIME type restrictions, and file size limits.
-- **Security Spec & Test Suite (`tests/firestore.rules.test.ts`)**: Verifies 12 adversarial "Dirty Dozen" penetration attack payloads.
-- **Client Integration (`src/services/firebase.ts`)**: Complete SDK initialization, Google Sign-In with popup, boot connection check (`getDocFromServer`), and standardized `handleFirestoreError` error formatting.
+Cloud Firestore
 
----
+Stores:
 
-## 8. Local Development & Deployment
+User profiles
 
-### Environment Configuration (`.env.example`)
-```env
-PORT=3000
-NODE_ENV=development
-JWT_SECRET=super-secret-jwt-key-replace-in-production
+Admin records
 
-# Firebase Project Configuration
-FIREBASE_PROJECT_ID=gen-lang-client-0384551552
-FIREBASE_STORAGE_BUCKET=gen-lang-client-0384551552.firebasestorage.app
-```
+Events
 
-### Installation & Run Commands
-```bash
-# 1. Install dependencies
+Event memberships
+
+Photo metadata
+
+Galleries
+
+Gallery secrets
+
+Gallery/photo relationships
+
+Firebase Storage
+
+Stores the actual uploaded photo files in a private bucket.
+
+Firebase Configuration Files
+
+firebase-blueprint.json
+firestore.rules
+storage.rules
+
+⚙️ Local Development
+
+Prerequisites
+
+Node.js
+
+npm
+
+Firebase project
+
+Required Firebase configuration/credentials
+
+1. Clone Repository
+
+git clone YOUR_GITHUB_REPOSITORY_URL
+cd photo-sharing-platform
+
+2. Install Dependencies
+
 npm install
 
-# 2. Run automated test suite
+3. Configure Environment Variables
+
+Create a .env file using .env.example.
+
+Example:
+
+PORT=3000
+NODE_ENV=development
+
+# Server-only secret
+JWT_SECRET=replace-with-a-long-random-server-only-secret
+
+# Firebase
+FIREBASE_PROJECT_ID=your-firebase-project-id
+FIREBASE_STORAGE_BUCKET=your-firebase-storage-bucket
+
+Important: Never commit production secrets to GitHub. JWT_SECRET must be a strong random server-only secret and must never use a VITE_ or public/client-side environment variable.
+
+4. Run Tests
+
 npm test
 
-# 3. Start development server (Port 3000)
+5. Start Development Server
+
 npm run dev
 
-# 4. Production build
+6. Production Build
+
 npm run build
 npm start
-```
+
+☁️ Deployment
+
+The application is deployed on Vercel with Firebase providing the backend services.
+
+Deployment Steps
+
+Connect the GitHub repository to Vercel.
+
+Configure production environment variables.
+
+Configure Firebase Authentication for the production domain.
+
+Deploy Firestore security rules.
+
+Deploy Firebase Storage security rules.
+
+Run the production build.
+
+Verify the production API.
+
+Perform the complete Admin → Team Member → Customer workflow.
+
+Production Verification Flow
+
+/api/health
+     ↓
+Admin Login
+     ↓
+Create Event
+     ↓
+Assign Team Member
+     ↓
+Team Member Login
+     ↓
+Upload Photo
+     ↓
+Admin Reviews / Selects Photo
+     ↓
+Create Gallery
+     ↓
+Set PIN
+     ↓
+Publish Gallery
+     ↓
+Customer Opens Gallery
+     ↓
+Enter PIN
+     ↓
+View Published Photo
+
+📊 Project Verification
+
+The application has been verified across the major challenge requirements:
+
+Authentication and role authorization
+
+Admin event creation
+
+Team Member assignment
+
+Event-level access control
+
+Photo upload and persistence
+
+Photo metadata persistence
+
+Admin photo review and selection
+
+Gallery creation
+
+PIN hashing and verification
+
+Gallery publishing
+
+Customer PIN-protected access
+
+Published-photo isolation
+
+Firebase Firestore persistence
+
+Firebase Storage integration
+
+Production API routing
+
+Automated security tests
+
+📁 Repository Documentation
+
+Additional documentation included in the repository:
+
+File
+
+Description
+
+README.md
+
+Project overview and setup
+
+ARCHITECTURE.md
+
+Detailed architecture and security specification
+
+SUBMISSION_CHECKLIST.md
+
+Challenge requirements and evaluation checklist
+
+firestore.rules
+
+Firestore security rules
+
+storage.rules
+
+Firebase Storage security rules
+
+firebase-blueprint.json
+
+Firebase data model/configuration
+
+tests/
+
+Automated functional and security tests
+
+🚧 Known Limitations
+
+Customer access is intentionally account-free and uses a gallery URL + PIN.
+
+Gallery PINs are numerical and protected using bcrypt hashing and rate limiting.
+
+Photo delivery uses controlled/signed access rather than public storage URLs.
+
+The application is designed for the internship challenge and can be further extended for larger production workloads.
+
+🔮 Future Enhancements
+
+Possible future improvements include:
+
+Automatic image thumbnails and resizing
+
+CDN-backed image delivery
+
+Gallery expiration dates
+
+Advanced photo search and filtering
+
+Pagination for large events
+
+Bulk photo downloads
+
+Enhanced bulk upload workflows
+
+CI/CD deployment checks
+
+Expanded monitoring and analytics
+
+📝 Internship Challenge Submission
+
+Organization: TrizenAI Technologies Private Limited
+
+Challenge: Full Stack Internship Challenge
+
+Project: Full Stack Photo Sharing Platform
+
+Live Application: YOUR_VERCEL_PRODUCTION_URL
+
+GitHub Repository: YOUR_GITHUB_REPOSITORY_URL
+
+Demo Admin
+
+Email: admin@photoplatform.com
+Password: AdminPass123!
+
+Demo Team Member
+
+Email: team@photoplatform.com
+Password: TeamPass123!
+
+Demo Customer Gallery
+
+Gallery: YOUR_VERCEL_PRODUCTION_URL/gallery/summer-gala-2026-vip
+PIN: 4826
+
+📌 Submission Checklist
+
+Before submitting, verify:
+
+Production Vercel URL works
+
+Admin login works in production
+
+Team Member login works in production
+
+Team Member has an assigned event
+
+Admin can create an event
+
+Admin can assign a Team Member
+
+Team Member can upload photos
+
+Uploaded photos persist after refresh/login
+
+Admin can review and select photos
+
+Admin can create and publish a gallery
+
+Gallery PIN works
+
+Wrong PIN is rejected
+
+Customer can view published photos
+
+Unpublished photos are not visible to customers
+
+Team Member cannot publish galleries
+
+Team Member cannot access unassigned events
+
+GitHub repository is accessible
+
+README contains the final production URL
+
+README contains valid demo credentials
+
+README contains the final gallery URL and PIN
+
+No production secrets are committed to GitHub
+
+Built for the TrizenAI Full Stack Internship Challenge.
