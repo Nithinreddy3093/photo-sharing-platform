@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Upload, X, AlertCircle, CheckCircle2, Image as ImageIcon, FileText } from 'lucide-react';
-import { api } from '../services/api.ts';
-import { Photo } from '../types/index.ts';
+import { api } from '../services/api';
+import { Photo } from '../types/index';
 
 interface PhotoUploadModalProps {
   eventId: string;

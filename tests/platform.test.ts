@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { db } from '../server/db.ts';
+import { db } from '../server/db';
 import {
   hashPassword,
   verifyPassword,
@@ -7,7 +7,7 @@ import {
   verifyPin,
   generateUserToken,
   generateGalleryAccessToken,
-} from '../server/auth.ts';
+} from '../server/auth';
 import {
   ALLOWED_MIME_TYPES,
   MAX_FILE_SIZE,
@@ -16,7 +16,7 @@ import {
   isValidStoragePath,
   generatePhotoStreamSignature,
   verifyPhotoStreamSignature,
-} from '../server/storage.ts';
+} from '../server/storage';
 
 describe('Photo Sharing Platform - Core System & Security Test Suite', () => {
   const adminEmail = 'admin@photoplatform.com';

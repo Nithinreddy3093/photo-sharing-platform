@@ -14,8 +14,8 @@ import {
   Clock,
   Sparkles,
 } from 'lucide-react';
-import { api } from '../services/api.ts';
-import { Event, DashboardStats, UserProfile } from '../types/index.ts';
+import { api } from '../services/api';
+import { Event, DashboardStats, UserProfile } from '../types/index';
 
 interface AdminDashboardProps {
   currentUser: UserProfile;

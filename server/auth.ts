@@ -1,10 +1,10 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { Request, Response, NextFunction } from 'express';
-import { UserRole, UserProfile } from '../src/types/index.ts';
-import { getFirebaseAdminApp } from './firebaseAdmin.ts';
+import type { Request, Response, NextFunction } from 'express';
+import type { UserRole, UserProfile } from '../src/types/index';
+import { getFirebaseAdminApp } from './firebaseAdmin';
 import { getAuth } from 'firebase-admin/auth';
-import { db } from './db.ts';
+import { db } from './db';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'photo-platform-jwt-secret-internship-2026';
 const PIN_SALT_ROUNDS = 10;

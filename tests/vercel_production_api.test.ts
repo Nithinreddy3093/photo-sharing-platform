@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
-import vercelApp from '../api/index.ts';
-import { db } from '../server/db.ts';
+import vercelApp from '../api/index';
+import { db } from '../server/db';
 
 describe('Vercel Production Serverless Architecture & API Routes', () => {
   let adminToken: string;
@@ -163,5 +163,56 @@ describe('Vercel Production Serverless Architecture & API Routes', () => {
     expect(res.headers['content-type']).toMatch(/json/);
     expect(res.body.status).toBe('ok');
     expect(res.body.firebaseConfigured).toBe(true);
+  });
+
+  it('15. Google Sign-In (Firebase Auth): POST /api/auth/firebase-login returns unified session', async () => {
+    const res = await request(vercelApp)
+      .post('/api/auth/firebase-login')
+      .send({
+        uid: 'google-oauth-uid-123',
+        email: 'googleuser@photoplatform.com',
+        name: 'Google User',
+      })
+      .expect(200);
+
+    expect(res.headers['content-type']).toMatch(/json/);
+    expect(res.body.token).toBeDefined();
+    expect(res.body.user).toBeDefined();
+    expect(res.body.user.email).toBe('googleuser@photoplatform.com');
+  });
+
+  it('16. Public Registration: POST /api/auth/register defaults safely to TEAM_MEMBER', async () => {
+    const uniqueEmail = `newteam_${Date.now()}@photoplatform.com`;
+    const res = await request(vercelApp)
+      .post('/api/auth/register')
+      .send({
+        name: 'New Team Member',
+        email: uniqueEmail,
+        password: 'SecurePassword123!',
+      })
+      .expect(201);
+
+    expect(res.headers['content-type']).toMatch(/json/);
+    expect(res.body.token).toBeDefined();
+    expect(res.body.user.role).toBe('TEAM_MEMBER');
+  });
+
+  it('17. Pre-bundled Vercel Entrypoint (api/index.js): successfully resolves and invokes POST /api/auth/login', async () => {
+    // Dynamically load the bundled JS artifact created by npm run build
+    const bundledModule = await import('../api/index.js');
+    const bundledApp = bundledModule.default;
+
+    const res = await request(bundledApp)
+      .post('/api/auth/login')
+      .send({
+        email: 'admin@photoplatform.com',
+        password: 'AdminPass123!',
+      })
+      .expect(200);
+
+    expect(res.headers['content-type']).toMatch(/json/);
+    expect(res.body.token).toBeDefined();
+    expect(res.body.user.email).toBe('admin@photoplatform.com');
+    expect(res.body.user.role).toBe('ADMIN');
   });
 });

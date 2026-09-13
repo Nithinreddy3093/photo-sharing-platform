@@ -21,10 +21,10 @@ import {
   KeyRound,
   Sparkles,
 } from 'lucide-react';
-import { api } from '../services/api.ts';
-import { Event, Photo, EventMember, Gallery, UserProfile } from '../types/index.ts';
-import { PhotoLightbox } from './PhotoLightbox.tsx';
-import { PhotoUploadModal } from './PhotoUploadModal.tsx';
+import { api } from '../services/api';
+import { Event, Photo, EventMember, Gallery, UserProfile } from '../types/index';
+import { PhotoLightbox } from './PhotoLightbox';
+import { PhotoUploadModal } from './PhotoUploadModal';
 
 interface EventDetailProps {
   eventId: string;

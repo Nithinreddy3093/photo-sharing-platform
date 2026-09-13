@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Shield, Users, Mail, Lock, User, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react';
-import { api } from '../services/api.ts';
-import { signInWithGoogle } from '../services/firebase.ts';
-import { UserProfile, UserRole } from '../types/index.ts';
+import { api } from '../services/api';
+import { signInWithGoogle } from '../services/firebase';
+import { UserProfile, UserRole } from '../types/index';
 
 interface AuthModalProps {
   onSuccess: (user: UserProfile) => void;

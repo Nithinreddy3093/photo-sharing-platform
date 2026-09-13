@@ -9,9 +9,9 @@ import {
   Clock,
   CheckCircle2,
 } from 'lucide-react';
-import { api } from '../services/api.ts';
-import { Event, UserProfile, Photo } from '../types/index.ts';
-import { PhotoUploadModal } from './PhotoUploadModal.tsx';
+import { api } from '../services/api';
+import { Event, UserProfile, Photo } from '../types/index';
+import { PhotoUploadModal } from './PhotoUploadModal';
 
 interface TeamDashboardProps {
   currentUser: UserProfile;

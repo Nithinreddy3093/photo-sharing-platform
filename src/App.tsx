@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Navbar } from './components/Navbar.tsx';
-import { AuthModal } from './components/AuthModal.tsx';
-import { AdminDashboard } from './components/AdminDashboard.tsx';
-import { TeamDashboard } from './components/TeamDashboard.tsx';
-import { EventDetail } from './components/EventDetail.tsx';
-import { AdminGalleriesView } from './components/AdminGalleriesView.tsx';
-import { CustomerGalleryView } from './components/CustomerGalleryView.tsx';
-import { UserProfile } from './types/index.ts';
-import { getStoredUser, clearAuthSession, api } from './services/api.ts';
+import { Navbar } from './components/Navbar';
+import { AuthModal } from './components/AuthModal';
+import { AdminDashboard } from './components/AdminDashboard';
+import { TeamDashboard } from './components/TeamDashboard';
+import { EventDetail } from './components/EventDetail';
+import { AdminGalleriesView } from './components/AdminGalleriesView';
+import { CustomerGalleryView } from './components/CustomerGalleryView';
+import { UserProfile } from './types/index';
+import { getStoredUser, clearAuthSession, api } from './services/api';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);

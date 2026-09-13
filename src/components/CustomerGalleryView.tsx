@@ -12,8 +12,8 @@ import {
   ArrowLeft,
   CheckCircle2,
 } from 'lucide-react';
-import { api } from '../services/api.ts';
-import { PhotoLightbox } from './PhotoLightbox.tsx';
+import { api } from '../services/api';
+import { PhotoLightbox } from './PhotoLightbox';
 
 interface CustomerGalleryViewProps {
   initialSlug?: string;

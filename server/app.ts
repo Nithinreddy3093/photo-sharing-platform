@@ -1,5 +1,5 @@
 import express from 'express';
-import apiRoutes from './routes.ts';
+import apiRoutes from './routes';
 
 export function createExpressApp(): express.Express {
   const app = express();

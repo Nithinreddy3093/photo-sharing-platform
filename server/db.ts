@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
-import {
+import type {
   UserProfile,
   UserRole,
   Event,
@@ -9,7 +9,7 @@ import {
   Gallery,
   GalleryStatus,
   DashboardStats,
-} from '../src/types/index.ts';
+} from '../src/types/index';
 
 export function isFirebaseConfigured(): boolean {
   return true;

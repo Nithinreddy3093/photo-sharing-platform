@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Layers, Globe, Lock, ExternalLink, Copy, Check, Calendar, ArrowRight, ShieldCheck } from 'lucide-react';
-import { api } from '../services/api.ts';
-import { Gallery } from '../types/index.ts';
+import { api } from '../services/api';
+import { Gallery } from '../types/index';
 
 interface AdminGalleriesViewProps {
   onSelectEvent: (eventId: string) => void;

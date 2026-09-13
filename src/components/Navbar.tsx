@@ -11,8 +11,8 @@ import {
   Database,
   CheckCircle2,
 } from 'lucide-react';
-import { UserProfile } from '../types/index.ts';
-import { api } from '../services/api.ts';
+import { UserProfile } from '../types/index';
+import { api } from '../services/api';
 
 interface NavbarProps {
   currentUser: UserProfile | null;

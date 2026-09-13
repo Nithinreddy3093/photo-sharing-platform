@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { getStorage } from 'firebase-admin/storage';
-import { getFirebaseAdminApp } from './firebaseAdmin.ts';
+import { getFirebaseAdminApp } from './firebaseAdmin';
 
 // Local storage directory for development / container / serverless fallback
 const LOCAL_STORAGE_DIR = process.env.VERCEL

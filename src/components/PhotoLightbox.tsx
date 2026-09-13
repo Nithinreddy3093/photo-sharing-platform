@@ -1,6 +1,6 @@
 import React from 'react';
 import { X, Download, Calendar, HardDrive, User, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Photo } from '../types/index.ts';
+import { Photo } from '../types/index';
 
 interface PhotoLightboxProps {
   photo: Photo | null;

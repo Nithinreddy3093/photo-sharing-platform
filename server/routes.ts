@@ -1,11 +1,12 @@
-import express, { Request, Response } from 'express';
+import express from 'express';
+import type { Request, Response } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
 import fs from 'fs';
 import path from 'path';
 import jwt from 'jsonwebtoken';
-import { UserRole } from '../src/types/index.ts';
-import { db, isFirebaseConfigured } from './db.ts';
+import type { UserRole } from '../src/types/index';
+import { db, isFirebaseConfigured } from './db';
 import {
   authenticateUser,
   requireAdmin,
@@ -18,9 +19,9 @@ import {
   verifyPassword,
   hashPin,
   verifyPin,
-  AuthenticatedRequest,
-} from './auth.ts';
-import { syncFirebaseUserRole } from './firebaseAdmin.ts';
+  type AuthenticatedRequest,
+} from './auth';
+import { syncFirebaseUserRole } from './firebaseAdmin';
 import {
   ALLOWED_MIME_TYPES,
   MAX_FILE_SIZE,
@@ -31,7 +32,7 @@ import {
   isValidStoragePath,
   verifyPhotoStreamSignature,
   deleteFileFromStorage,
-} from './storage.ts';
+} from './storage';
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'photo-platform-jwt-secret-internship-2026';
@@ -214,21 +215,21 @@ router.post('/auth/login', async (req: Request, res: Response) => {
     }
 
     const { email, password } = parsed.data;
-    const user = await db.findProfileByEmail(email);
+
+    // 1. Verify user credentials via bcrypt against database store
+    const user = await db.verifyUserCredentials(email, password);
     if (!user) {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
 
-    const storedHash = await db.getPasswordHash(email);
-    if (!storedHash) {
-      return res.status(401).json({ error: 'Invalid email or password.' });
+    // 2. Firebase role synchronization if applicable (non-blocking for resilience)
+    if (user.auth_user_id) {
+      syncFirebaseUserRole(user.auth_user_id, user.email, user.role).catch((err) => {
+        console.warn('[Login Firebase Sync] Non-fatal notification:', err?.message);
+      });
     }
 
-    const match = await verifyPassword(password, storedHash);
-    if (!match) {
-      return res.status(401).json({ error: 'Invalid email or password.' });
-    }
-
+    // 3. Generate signed staff JWT
     const token = generateUserToken(user);
     return res.json({
       token,

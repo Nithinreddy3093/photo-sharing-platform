@@ -6,7 +6,7 @@ import {
   Gallery,
   DashboardStats,
   CustomerGallerySession,
-} from '../types/index.ts';
+} from '../types/index';
 
 const TOKEN_KEY = 'photo_platform_token';
 const USER_KEY = 'photo_platform_user';

@@ -19,7 +19,7 @@ import {
   Unsubscribe
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { UserProfile, Event, EventMember, Photo, Gallery } from '../types/index.ts';
+import { UserProfile, Event, EventMember, Photo, Gallery } from '../types/index';
 
 // Initialize Firebase SDK
 export const app = initializeApp(firebaseConfig);

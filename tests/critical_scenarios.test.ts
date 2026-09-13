@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-import apiRoutes from '../server/routes.ts';
-import { db } from '../server/db.ts';
-import { uploadFileToStorage } from '../server/storage.ts';
+import apiRoutes from '../server/routes';
+import { db } from '../server/db';
+import { uploadFileToStorage } from '../server/storage';
 
 function createTestApp() {
   const app = express();
