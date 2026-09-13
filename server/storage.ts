@@ -1,7 +1,6 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { getStorage } from 'firebase-admin/storage';
 import { getFirebaseAdminApp } from './firebaseAdmin';
 
 // Local storage directory for development / container / serverless fallback
@@ -27,10 +26,11 @@ export function isFirebaseStorageConfigured(): boolean {
   return Boolean(app);
 }
 
-function getBucket() {
+async function getBucket() {
   const app = getFirebaseAdminApp();
   if (!app) return null;
   try {
+    const { getStorage } = await import('firebase-admin/storage');
     return getStorage(app).bucket();
   } catch {
     return null;
@@ -84,7 +84,7 @@ export async function uploadFileToStorage(
     throw new Error('Invalid storage path format.');
   }
 
-  const bucket = getBucket();
+  const bucket = await getBucket();
   let uploadedToFirebase = false;
 
   if (bucket) {
@@ -126,7 +126,7 @@ export async function uploadFileToStorage(
 export async function deleteFileFromStorage(storagePath: string): Promise<void> {
   if (!isValidStoragePath(storagePath)) return;
 
-  const bucket = getBucket();
+  const bucket = await getBucket();
   if (bucket) {
     try {
       await bucket.file(storagePath).delete({ ignoreNotFound: true });
@@ -147,7 +147,7 @@ export async function deleteFileFromStorage(storagePath: string): Promise<void> 
 }
 
 export async function getSignedPhotoUrl(storagePath: string, expiresInSeconds: number = 7200): Promise<string> {
-  const bucket = getBucket();
+  const bucket = await getBucket();
 
   if (bucket) {
     try {

@@ -516,8 +516,6 @@ import jwt from "jsonwebtoken";
 
 // server/firebaseAdmin.ts
 import { getApps, initializeApp, cert } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
 import fs from "fs";
 import path from "path";
 var adminApp = null;
@@ -582,37 +580,63 @@ function getFirebaseAdminApp() {
     return null;
   }
 }
+async function getAdminAuth(app2) {
+  const targetApp = app2 || getFirebaseAdminApp();
+  if (!targetApp) return null;
+  try {
+    const { getAuth } = await import("firebase-admin/auth");
+    return getAuth(targetApp);
+  } catch (err) {
+    console.warn("[Firebase Auth] Failed to load auth:", err.message);
+    return null;
+  }
+}
+async function getAdminFirestore(app2) {
+  const targetApp = app2 || getFirebaseAdminApp();
+  if (!targetApp) return null;
+  try {
+    const { getFirestore } = await import("firebase-admin/firestore");
+    return getFirestore(targetApp);
+  } catch (err) {
+    console.warn("[Firebase Firestore] Failed to load firestore:", err.message);
+    return null;
+  }
+}
 async function syncFirebaseUserRole(authUserId, email, role) {
   const app2 = getFirebaseAdminApp();
   if (!app2) return;
   try {
-    const auth = getAuth(app2);
-    try {
-      await auth.setCustomUserClaims(authUserId, {
-        role,
-        admin: role === "ADMIN"
-      });
-    } catch {
+    const auth = await getAdminAuth(app2);
+    if (auth) {
+      try {
+        await auth.setCustomUserClaims(authUserId, {
+          role,
+          admin: role === "ADMIN"
+        });
+      } catch {
+      }
     }
     try {
-      const firestore = getFirestore(app2);
-      const userRef = firestore.collection("users").doc(authUserId);
-      await userRef.set(
-        {
-          role,
-          updated_at: (/* @__PURE__ */ new Date()).toISOString()
-        },
-        { merge: true }
-      );
-      const adminRef = firestore.collection("admins").doc(authUserId);
-      if (role === "ADMIN") {
-        await adminRef.set({
-          uid: authUserId,
-          email,
-          assigned_at: (/* @__PURE__ */ new Date()).toISOString()
-        });
-      } else {
-        await adminRef.delete();
+      const firestore = await getAdminFirestore(app2);
+      if (firestore) {
+        const userRef = firestore.collection("users").doc(authUserId);
+        await userRef.set(
+          {
+            role,
+            updated_at: (/* @__PURE__ */ new Date()).toISOString()
+          },
+          { merge: true }
+        );
+        const adminRef = firestore.collection("admins").doc(authUserId);
+        if (role === "ADMIN") {
+          await adminRef.set({
+            uid: authUserId,
+            email,
+            assigned_at: (/* @__PURE__ */ new Date()).toISOString()
+          });
+        } else {
+          await adminRef.delete();
+        }
       }
     } catch {
     }
@@ -622,7 +646,6 @@ async function syncFirebaseUserRole(authUserId, email, role) {
 }
 
 // server/auth.ts
-import { getAuth as getAuth2 } from "firebase-admin/auth";
 var JWT_SECRET = process.env.JWT_SECRET || "photo-platform-jwt-secret-internship-2026";
 var PIN_SALT_ROUNDS = 10;
 var PASSWORD_SALT_ROUNDS = 10;
@@ -677,22 +700,24 @@ async function authenticateUser(req, res, next) {
   try {
     const adminApp2 = getFirebaseAdminApp();
     if (adminApp2) {
-      const adminAuth = getAuth2(adminApp2);
-      const decodedFirebase = await adminAuth.verifyIdToken(token);
-      if (decodedFirebase && decodedFirebase.uid) {
-        let profile = await db.findProfileByAuthId(decodedFirebase.uid);
-        if (!profile && decodedFirebase.email) {
-          profile = await db.findProfileByEmail(decodedFirebase.email);
-        }
-        if (profile) {
-          req.user = {
-            userId: profile.id,
-            authUserId: profile.auth_user_id,
-            email: profile.email,
-            name: profile.name,
-            role: decodedFirebase.role || profile.role
-          };
-          return next();
+      const adminAuth = await getAdminAuth(adminApp2);
+      if (adminAuth) {
+        const decodedFirebase = await adminAuth.verifyIdToken(token);
+        if (decodedFirebase && decodedFirebase.uid) {
+          let profile = await db.findProfileByAuthId(decodedFirebase.uid);
+          if (!profile && decodedFirebase.email) {
+            profile = await db.findProfileByEmail(decodedFirebase.email);
+          }
+          if (profile) {
+            req.user = {
+              userId: profile.id,
+              authUserId: profile.auth_user_id,
+              email: profile.email,
+              name: profile.name,
+              role: decodedFirebase.role || profile.role
+            };
+            return next();
+          }
         }
       }
     }
@@ -734,7 +759,6 @@ function verifyCustomerGallerySession(req, res, next) {
 import fs2 from "fs";
 import path2 from "path";
 import crypto2 from "crypto";
-import { getStorage } from "firebase-admin/storage";
 var LOCAL_STORAGE_DIR = process.env.VERCEL ? path2.join("/tmp", "uploads") : path2.join(process.cwd(), "uploads");
 try {
   if (!fs2.existsSync(LOCAL_STORAGE_DIR)) {
@@ -745,10 +769,11 @@ try {
 var ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
 var MAX_FILE_SIZE = 10 * 1024 * 1024;
 var JWT_SECRET2 = process.env.JWT_SECRET || "photo-platform-jwt-secret-internship-2026";
-function getBucket() {
+async function getBucket() {
   const app2 = getFirebaseAdminApp();
   if (!app2) return null;
   try {
+    const { getStorage } = await import("firebase-admin/storage");
     return getStorage(app2).bucket();
   } catch {
     return null;
@@ -786,7 +811,7 @@ async function uploadFileToStorage(storagePath, buffer, mimeType) {
   if (!isValidStoragePath(storagePath)) {
     throw new Error("Invalid storage path format.");
   }
-  const bucket = getBucket();
+  const bucket = await getBucket();
   let uploadedToFirebase = false;
   if (bucket) {
     try {
@@ -820,7 +845,7 @@ async function uploadFileToStorage(storagePath, buffer, mimeType) {
 }
 async function deleteFileFromStorage(storagePath) {
   if (!isValidStoragePath(storagePath)) return;
-  const bucket = getBucket();
+  const bucket = await getBucket();
   if (bucket) {
     try {
       await bucket.file(storagePath).delete({ ignoreNotFound: true });
@@ -839,7 +864,7 @@ async function deleteFileFromStorage(storagePath) {
   }
 }
 async function getSignedPhotoUrl(storagePath, expiresInSeconds = 7200) {
-  const bucket = getBucket();
+  const bucket = await getBucket();
   if (bucket) {
     try {
       const file = bucket.file(storagePath);

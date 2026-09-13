@@ -2,8 +2,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import type { Request, Response, NextFunction } from 'express';
 import type { UserRole, UserProfile } from '../src/types/index';
-import { getFirebaseAdminApp } from './firebaseAdmin';
-import { getAuth } from 'firebase-admin/auth';
+import { getFirebaseAdminApp, getAdminAuth } from './firebaseAdmin';
 import { db } from './db';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'photo-platform-jwt-secret-internship-2026';
@@ -102,23 +101,25 @@ export async function authenticateUser(req: AuthenticatedRequest, res: Response,
   try {
     const adminApp = getFirebaseAdminApp();
     if (adminApp) {
-      const adminAuth = getAuth(adminApp);
-      const decodedFirebase = await adminAuth.verifyIdToken(token);
-      if (decodedFirebase && decodedFirebase.uid) {
-        let profile = await db.findProfileByAuthId(decodedFirebase.uid);
-        if (!profile && decodedFirebase.email) {
-          profile = await db.findProfileByEmail(decodedFirebase.email);
-        }
+      const adminAuth = await getAdminAuth(adminApp);
+      if (adminAuth) {
+        const decodedFirebase = await adminAuth.verifyIdToken(token);
+        if (decodedFirebase && decodedFirebase.uid) {
+          let profile = await db.findProfileByAuthId(decodedFirebase.uid);
+          if (!profile && decodedFirebase.email) {
+            profile = await db.findProfileByEmail(decodedFirebase.email);
+          }
 
-        if (profile) {
-          req.user = {
-            userId: profile.id,
-            authUserId: profile.auth_user_id,
-            email: profile.email,
-            name: profile.name,
-            role: (decodedFirebase.role as UserRole) || profile.role,
-          };
-          return next();
+          if (profile) {
+            req.user = {
+              userId: profile.id,
+              authUserId: profile.auth_user_id,
+              email: profile.email,
+              name: profile.name,
+              role: (decodedFirebase.role as UserRole) || profile.role,
+            };
+            return next();
+          }
         }
       }
     }
@@ -147,21 +148,23 @@ export async function optionalUser(req: AuthenticatedRequest, res: Response, nex
     try {
       const adminApp = getFirebaseAdminApp();
       if (adminApp) {
-        const adminAuth = getAuth(adminApp);
-        const decodedFirebase = await adminAuth.verifyIdToken(token);
-        if (decodedFirebase && decodedFirebase.uid) {
-          let profile = await db.findProfileByAuthId(decodedFirebase.uid);
-          if (!profile && decodedFirebase.email) {
-            profile = await db.findProfileByEmail(decodedFirebase.email);
-          }
-          if (profile) {
-            req.user = {
-              userId: profile.id,
-              authUserId: profile.auth_user_id,
-              email: profile.email,
-              name: profile.name,
-              role: (decodedFirebase.role as UserRole) || profile.role,
-            };
+        const adminAuth = await getAdminAuth(adminApp);
+        if (adminAuth) {
+          const decodedFirebase = await adminAuth.verifyIdToken(token);
+          if (decodedFirebase && decodedFirebase.uid) {
+            let profile = await db.findProfileByAuthId(decodedFirebase.uid);
+            if (!profile && decodedFirebase.email) {
+              profile = await db.findProfileByEmail(decodedFirebase.email);
+            }
+            if (profile) {
+              req.user = {
+                userId: profile.id,
+                authUserId: profile.auth_user_id,
+                email: profile.email,
+                name: profile.name,
+                role: (decodedFirebase.role as UserRole) || profile.role,
+              };
+            }
           }
         }
       }

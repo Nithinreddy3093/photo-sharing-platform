@@ -1,6 +1,4 @@
 import { getApps, initializeApp, cert, type App } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
-import { getFirestore } from 'firebase-admin/firestore';
 import fs from 'fs';
 import path from 'path';
 
@@ -85,6 +83,37 @@ export function getFirebaseAdminApp(): App | null {
 }
 
 /**
+ * Asynchronously loads Firebase Admin Auth on demand.
+ * This prevents unnecessary startup evaluation and ensures safe serverless execution.
+ */
+export async function getAdminAuth(app?: App | null) {
+  const targetApp = app || getFirebaseAdminApp();
+  if (!targetApp) return null;
+  try {
+    const { getAuth } = await import('firebase-admin/auth');
+    return getAuth(targetApp);
+  } catch (err: any) {
+    console.warn('[Firebase Auth] Failed to load auth:', err.message);
+    return null;
+  }
+}
+
+/**
+ * Asynchronously loads Firebase Admin Firestore on demand.
+ */
+export async function getAdminFirestore(app?: App | null) {
+  const targetApp = app || getFirebaseAdminApp();
+  if (!targetApp) return null;
+  try {
+    const { getFirestore } = await import('firebase-admin/firestore');
+    return getFirestore(targetApp);
+  } catch (err: any) {
+    console.warn('[Firebase Firestore] Failed to load firestore:', err.message);
+    return null;
+  }
+}
+
+/**
  * Synchronizes user role with Firebase Auth custom claims and Firestore security collections.
  * Ensures consistent RBAC enforcement across Firebase Auth and Cloud Firestore.
  */
@@ -97,38 +126,42 @@ export async function syncFirebaseUserRole(
   if (!app) return;
 
   try {
-    const auth = getAuth(app);
+    const auth = await getAdminAuth(app);
     // 1. Synchronize Firebase Auth custom claims
-    try {
-      await auth.setCustomUserClaims(authUserId, {
-        role,
-        admin: role === 'ADMIN',
-      });
-    } catch {
-      // Non-fatal if local or mock user without an existing Firebase Auth record
+    if (auth) {
+      try {
+        await auth.setCustomUserClaims(authUserId, {
+          role,
+          admin: role === 'ADMIN',
+        });
+      } catch {
+        // Non-fatal if local or mock user without an existing Firebase Auth record
+      }
     }
 
     // 2. Synchronize Firestore users and admins collections
     try {
-      const firestore = getFirestore(app);
-      const userRef = firestore.collection('users').doc(authUserId);
-      await userRef.set(
-        {
-          role,
-          updated_at: new Date().toISOString(),
-        },
-        { merge: true }
-      );
+      const firestore = await getAdminFirestore(app);
+      if (firestore) {
+        const userRef = firestore.collection('users').doc(authUserId);
+        await userRef.set(
+          {
+            role,
+            updated_at: new Date().toISOString(),
+          },
+          { merge: true }
+        );
 
-      const adminRef = firestore.collection('admins').doc(authUserId);
-      if (role === 'ADMIN') {
-        await adminRef.set({
-          uid: authUserId,
-          email,
-          assigned_at: new Date().toISOString(),
-        });
-      } else {
-        await adminRef.delete();
+        const adminRef = firestore.collection('admins').doc(authUserId);
+        if (role === 'ADMIN') {
+          await adminRef.set({
+            uid: authUserId,
+            email,
+            assigned_at: new Date().toISOString(),
+          });
+        } else {
+          await adminRef.delete();
+        }
       }
     } catch {
       // Non-fatal in local/offline test mode
